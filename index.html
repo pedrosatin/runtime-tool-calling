@@ -73,7 +73,7 @@ body {
 
 .corpo {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 330px 1fr;
   align-items: start;
   gap: 0;
 }
@@ -84,7 +84,9 @@ body {
   min-height: calc(100vh - 57px);
   max-height: calc(100vh - 57px);
   overflow-y: auto;
-  padding: 22px 24px 60px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--linha) transparent;
+  padding: 20px 20px 60px;
   border-right: 1px solid var(--linha);
   background: var(--painel);
 }
@@ -137,14 +139,25 @@ input, select, textarea {
 
 textarea { resize: vertical; line-height: 1.5; tab-size: 2 }
 
-.editor { position: relative }
+.editor {
+  position: relative;
+  background: var(--campo);
+  border: 1px solid var(--linha);
+  border-radius: 5px;
+  overflow: hidden;
+  transition: border-color .15s ease;
+}
+
+.editor:focus-within {
+  border-color: var(--local);
+}
 
 .editor > pre, .editor > textarea {
   margin: 0;
   padding: 8px 10px;
   width: 100%;
-  border: 1px solid var(--linha);
-  border-radius: 5px;
+  border: none;
+  border-radius: 0;
   font-family: var(--mono);
   font-size: 13px;
   line-height: 1.5;
@@ -153,25 +166,40 @@ textarea { resize: vertical; line-height: 1.5; tab-size: 2 }
   overflow-wrap: break-word;
   overflow-y: auto;
   scrollbar-gutter: stable;
+  box-sizing: border-box;
 }
 
 .editor > pre {
   position: absolute;
   inset: 0;
-  background: var(--campo);
+  background: transparent;
   color: var(--texto);
-  border-color: transparent;
   pointer-events: none;
 }
 
 .editor > textarea {
+  display: block;
   position: relative;
   background: transparent;
   color: transparent;
   caret-color: var(--local);
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  resize: vertical;
 }
 
-.editor > textarea::selection { background: #34344a }
+.editor > textarea:focus,
+.editor > textarea:focus-visible {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.editor > textarea::selection {
+  background: #34344a;
+  color: transparent;
+}
 
 .tk-chave { color: var(--t-chave) }
 .tk-texto { color: var(--t-texto) }
@@ -179,7 +207,7 @@ textarea { resize: vertical; line-height: 1.5; tab-size: 2 }
 .tk-coment { color: var(--t-coment); font-style: italic }
 .tk-pont { color: var(--t-pont) }
 
-input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible,
+input:focus-visible, select:focus-visible, textarea:not(.editor textarea):focus-visible, button:focus-visible,
 summary:focus-visible {
   outline: 2px solid var(--local);
   outline-offset: 2px;
@@ -249,6 +277,7 @@ button.acao {
 .estado.ok { color: var(--local) }
 .estado.ruim { color: var(--alerta) }
 
+.entrega[hidden] { display: none }
 .entrega { margin-left: auto; display: flex; gap: 6px; align-items: center }
 .entrega button { font-size: 12px }
 
@@ -260,6 +289,8 @@ button.acao {
 .codigo b { color: var(--texto); letter-spacing: 1px }
 
 /* raia de atores */
+
+.raias[hidden] { display: none }
 
 .raias {
   display: grid;
@@ -274,6 +305,8 @@ button.acao {
 .raias .meio { text-align: center; color: var(--linha) }
 
 .passos { position: relative }
+
+.passos:empty::before { display: none }
 
 .passos::before {
   content: "";
@@ -421,8 +454,41 @@ details pre {
   .pulso { animation: none; opacity: .8 }
 }
 
-.vazio { color: var(--fraco); font-size: 13.5px; max-width: 60ch }
-.vazio code { font-family: var(--mono); color: var(--texto) }
+.vazio[hidden] { display: none }
+
+.vazio {
+  margin: 32px auto;
+  max-width: 540px;
+  padding: 24px 28px;
+  background: var(--painel);
+  border: 1px dashed var(--linha);
+  border-radius: 8px;
+  text-align: center;
+  color: var(--fraco);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.vazio code {
+  font-family: var(--mono);
+  color: var(--texto);
+  background: #0c0c10;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.bloco-pensamento {
+  border-top: 1px solid var(--linha);
+}
+
+.bloco-pensamento summary {
+  color: #b0a4d6;
+  font-weight: 500;
+}
+
+.bloco-pensamento summary:hover {
+  color: #d8cefa;
+}
 
 @media (max-width: 720px) {
   .raias { display: none }
@@ -433,6 +499,51 @@ details pre {
   .no { grid-column: 1; justify-self: start }
 }
 /* ---------- etapas do painel ---------- */
+
+.acesso { margin-bottom: 16px }
+
+.acesso > select, .acesso > input { margin-bottom: 6px }
+
+.acesso .dupla { margin-bottom: 6px }
+
+.acesso .recado { margin: 6px 0 0; display: block }
+
+.opcao {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 14px 0 0;
+  font-size: 12.5px;
+  color: var(--fraco);
+  cursor: pointer;
+}
+
+.opcao input {
+  width: auto;
+  margin: 0;
+  accent-color: var(--remoto);
+  cursor: pointer;
+}
+
+.termo {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--fraco);
+}
+
+.pensou {
+  margin: 0;
+  padding: 4px 12px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.55;
+  color: #c9c0e8;
+  white-space: pre-wrap;
+  max-height: 240px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
 
 .etapa {
   display: grid;
@@ -547,33 +658,45 @@ button.secundario { font-size: 12px }
 
 <div class="topo">
   <h1>runtime de tool calling <b>{}</b></h1>
-  <p>Declare a ferramenta, escreva o corpo da função e veja quem decide o quê em cada passo do ciclo.</p>
 </div>
 
 <div class="corpo">
 
   <div class="painel">
 
-    <button class="etapa" data-abre="mAcesso">
-      <span class="num">1</span>
-      <span class="nome">Acesso</span>
-      <span class="valor" id="resumoAcesso"></span>
-    </button>
+    <div class="acesso">
+      <select id="provedor" aria-label="Provedor">
+        <option value="gemini">Google AI Studio</option>
+        <option value="groq">Groq</option>
+      </select>
+      <div class="dupla">
+        <select id="modelo" aria-label="Modelo"></select>
+        <button type="button" id="buscar" title="Lista os modelos liberados para a sua chave">Modelos</button>
+      </div>
+      <input id="chave" type="password" spellcheck="false" placeholder="chave de API" aria-label="Chave de API">
+      <div class="mini">
+        <button type="button" id="salvar">Guardar chave</button>
+        <button type="button" id="limpar">Apagar</button>
+      </div>
+      <p class="recado" id="recadoAcesso"></p>
+    </div>
 
     <button class="etapa" data-abre="mSchema">
-      <span class="num">2</span>
+      <span class="num">1</span>
       <span class="nome">Declaração da ferramenta</span>
       <span class="valor" id="resumoSchema"></span>
     </button>
 
     <button class="etapa" data-abre="mCorpo">
-      <span class="num">3</span>
+      <span class="num">2</span>
       <span class="nome">Corpo da função</span>
       <span class="valor" id="resumoCorpo"></span>
     </button>
 
-    <label class="rotulo" for="pedido"><span class="num">4</span> Pedido do usuário</label>
+    <label class="rotulo" for="pedido"><span class="num">3</span> Pedido do usuário</label>
     <input id="pedido" spellcheck="false">
+
+    <label class="opcao"><input type="checkbox" id="pensamento"> <span>Mostrar raciocínio <span class="termo">(thought / reasoning)</span></span></label>
 
     <button class="acao" id="executar">Executar o ciclo</button>
 
@@ -590,9 +713,9 @@ button.secundario { font-size: 12px }
 
   <div class="trilha">
     <div class="cabeca">
-      <h2>Ciclo executado</h2>
-      <span class="estado" id="estado"></span>
-      <div class="entrega">
+      <h2>Trilha de execução</h2>
+      <span class="estado" id="estado">parado</span>
+      <div class="entrega" id="entrega" hidden>
         <span class="codigo" id="codigo"></span>
         <button id="copiar" disabled>Copiar relatório</button>
         <button id="baixar" disabled>Baixar .md</button>
@@ -603,45 +726,16 @@ button.secundario { font-size: 12px }
       <span>sua aplicação</span><span class="meio">|</span><span>modelo</span>
     </div>
 
-    <div class="passos" id="passos">
-      <p class="vazio">Cole a chave no bloco 1 e clique em <code>Executar o ciclo</code>. Cada passo aparece do lado de quem o executou: à esquerda o código que roda na sua máquina, à direita as decisões do modelo.</p>
-    </div>
+    <p class="vazio" id="vazio">Cole a chave de API no painel à esquerda e clique em <code>Executar o ciclo</code>. Cada passo aparece do lado de quem o executou: à esquerda o código que roda na sua máquina, à direita as decisões do modelo.</p>
+
+    <div class="passos" id="passos"></div>
   </div>
 
 </div>
 
-<dialog id="mAcesso">
-  <form method="dialog" class="janela">
-    <header><h3>Acesso ao provedor</h3><button value="fechar" class="fechar" aria-label="Fechar">x</button></header>
-    <div class="conteudo">
-      <label for="provedor">Provedor</label>
-      <select id="provedor">
-        <option value="gemini">Google AI Studio (Gemini)</option>
-        <option value="groq">Groq</option>
-      </select>
-
-      <label for="modelo">Modelo</label>
-      <div class="dupla">
-        <select id="modelo"></select>
-        <button type="button" id="buscar" title="Lista os modelos liberados para a sua chave">Buscar</button>
-      </div>
-      <p class="dica" id="dicaModelo"></p>
-
-      <label for="chave">Chave de API</label>
-      <input id="chave" type="password" spellcheck="false" placeholder="cole a chave do provedor escolhido">
-      <div class="mini">
-        <button type="button" id="salvar">Guardar neste navegador</button>
-        <button type="button" id="limpar">Apagar chave</button>
-      </div>
-      <p class="dica">A chave fica no <code>localStorage</code> deste navegador e vai apenas para o provedor escolhido. Nenhum servidor intermediário recebe a requisição.</p>
-    </div>
-    <footer><span class="recado" id="recadoAcesso"></span><button value="fechar" class="acao curto">Concluir</button></footer>
-  </form>
-</dialog>
-
 <dialog id="mSchema">
   <form method="dialog" class="janela larga">
-    <header><h3>Declaração da ferramenta</h3><button value="fechar" class="fechar" aria-label="Fechar">x</button></header>
+    <header><h3>Declaração da ferramenta <span class="termo">(schema JSON)</span></h3><button value="fechar" class="fechar" aria-label="Fechar">x</button></header>
     <div class="conteudo">
       <p class="dica">O que o modelo enxerga. Ele nunca vê o corpo da função, decide pela <code>description</code> e pelos tipos declarados.</p>
       <div class="editor alto"><pre id="schemaRealce" aria-hidden="true"></pre><textarea id="schema" spellcheck="false"></textarea></div>
@@ -656,7 +750,7 @@ button.secundario { font-size: 12px }
 
 <dialog id="mCorpo">
   <form method="dialog" class="janela larga">
-    <header><h3>Corpo da função</h3><button value="fechar" class="fechar" aria-label="Fechar">x</button></header>
+    <header><h3>Corpo da função <span class="termo">(execução local / runtime)</span></h3><button value="fechar" class="fechar" aria-label="Fechar">x</button></header>
     <div class="conteudo">
       <p class="dica">JavaScript executado no seu navegador. Recebe <code>args</code> com os argumentos que o modelo escolheu e devolve com <code>return</code>.</p>
       <div class="editor alto"><pre id="corpoRealce" aria-hidden="true"></pre><textarea id="corpo" spellcheck="false"></textarea></div>
@@ -672,27 +766,25 @@ button.secundario { font-size: 12px }
 <script>
 const MODELOS = {
   gemini: [
-    ['gemini-3.5-flash', 'rápido e estável nos testes'],
-    ['gemini-3.7-flash', 'mais recente, um pouco mais lento'],
-    ['gemini-3.5-flash-lite', 'menor latência'],
-    ['gemini-3.1-flash-lite', 'alternativa leve'],
-    ['gemini-flash-lite-latest', 'apelido sempre atualizado'],
-    ['gemini-3-flash-preview', 'preview'],
-    ['gemini-3.6-flash', 'devolve 503 com frequência'],
-    ['gemini-3.8-flash', 'devolve 503 com frequência'],
-    ['gemini-pro-latest', 'cota gratuita bem menor']
+    'gemini-3.5-flash',
+    'gemini-3.7-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-flash-lite-latest',
+    'gemini-3-flash-preview',
+    'gemini-pro-latest'
   ],
   groq: [
-    ['llama-3.3-70b-versatile', 'padrão para tool calling'],
-    ['llama-3.1-8b-instant', 'menor e mais rápido'],
-    ['openai/gpt-oss-120b', 'modelo aberto da OpenAI'],
-    ['openai/gpt-oss-20b', 'versão menor']
+    'llama-3.3-70b-versatile',
+    'llama-3.1-8b-instant',
+    'openai/gpt-oss-120b',
+    'openai/gpt-oss-20b'
   ]
 }
 
 const PADRAO = { gemini: 'gemini-3.5-flash', groq: 'llama-3.3-70b-versatile' }
 
-const NOME_PROVEDOR = { gemini: 'Google AI Studio (Gemini)', groq: 'Groq' }
+const NOME_PROVEDOR = { gemini: 'Google AI Studio', groq: 'Groq' }
 
 const SCHEMA_OK = `{
   "name": "consultarStatusPedido",
@@ -802,15 +894,13 @@ let relatorio = null
 function preencherModelos(lista, selecionado) {
   const sel = el('modelo')
   sel.innerHTML = ''
-  lista.forEach(item => {
-    const id = Array.isArray(item) ? item[0] : item
-    const nota = Array.isArray(item) ? item[1] : ''
+  lista.forEach(id => {
     const o = document.createElement('option')
     o.value = id
-    o.textContent = nota ? id + '  (' + nota + ')' : id
+    o.textContent = id
     sel.append(o)
   })
-  if (selecionado && !lista.some(i => (Array.isArray(i) ? i[0] : i) === selecionado)) {
+  if (selecionado && !lista.includes(selecionado)) {
     const o = document.createElement('option')
     o.value = selecionado
     o.textContent = selecionado
@@ -824,9 +914,6 @@ function trocarProvedor() {
   preencherModelos(MODELOS[p], localStorage.getItem('tc_modelo_' + p) || PADRAO[p])
   el('chave').value = localStorage.getItem('tc_chave_' + p) || ''
   atualizarResumos()
-  el('dicaModelo').textContent = p === 'gemini'
-    ? 'O nível gratuito dá 20 requisições por dia em cada modelo, e um ciclo completo gasta 2. A cota é contada por modelo, então trocar de modelo aqui devolve um saldo novo. Modelos da família 2.5 devolvem 404 em contas criadas recentemente.'
-    : 'Todos os modelos listados aceitam declaração de ferramenta no formato da OpenAI.'
 }
 
 function aplicarCenario(nome) {
@@ -854,7 +941,11 @@ function iniciar() {
   el('pedido').value = localStorage.getItem('tc_pedido') || CENARIOS.ok.pedido
   repintarTudo()
   atualizarResumos()
-  if (!el('chave').value.trim()) el('mAcesso').showModal()
+  el('pensamento').checked = localStorage.getItem('tc_pensamento') === '1'
+  situacao('parado', '')
+  el('entrega').hidden = true
+  el('raias').hidden = true
+  el('vazio').hidden = false
 }
 
 el('provedor').addEventListener('change', () => {
@@ -868,6 +959,10 @@ el('modelo').addEventListener('change', () => {
 })
 
 el('chave').addEventListener('input', atualizarResumos)
+
+el('pensamento').addEventListener('change', () => {
+  localStorage.setItem('tc_pensamento', el('pensamento').checked ? '1' : '0')
+})
 
 el('salvar').addEventListener('click', () => {
   const p = el('provedor').value
@@ -915,7 +1010,7 @@ el('buscar').addEventListener('click', async () => {
     recadoAcesso(String(erro.message || erro), 'ruim')
   } finally {
     el('buscar').disabled = false
-    el('buscar').textContent = 'Buscar'
+    el('buscar').textContent = 'Modelos'
   }
 })
 
@@ -992,13 +1087,6 @@ function guardarCampos() {
 }
 
 function atualizarResumos() {
-  const p = el('provedor').value
-  const temChave = el('chave').value.trim().length > 0
-  const acesso = el('resumoAcesso')
-  acesso.textContent = (p === 'gemini' ? 'AI Studio' : 'Groq') + ' · ' + el('modelo').value +
-    ' · ' + (temChave ? 'chave preenchida' : 'sem chave')
-  acesso.className = 'valor' + (temChave ? '' : ' ruim')
-
   const schema = el('resumoSchema')
   try {
     const d = JSON.parse(el('schema').value)
@@ -1028,10 +1116,12 @@ function situacao(texto, classe) {
 function limpar() {
   passos.innerHTML = ''
   contador = 0
-  el('raias').hidden = false
+  el('vazio').hidden = true
+  el('entrega').hidden = true
 }
 
-function cartao(lado, titulo, resumo, bruto, tipo) {
+function cartao(lado, titulo, resumo, bruto, tipo, pensou) {
+  if (lado !== 'falha') el('raias').hidden = false
   const passo = document.createElement('div')
   passo.className = 'passo ' + lado + (tipo === 'final' ? ' final' : '')
 
@@ -1057,6 +1147,18 @@ function cartao(lado, titulo, resumo, bruto, tipo) {
     if (tipo === 'final') negrito(r, resumo)
     else r.textContent = resumo
     caixa.append(r)
+  }
+
+  if (pensou) {
+    const d = document.createElement('details')
+    d.className = 'bloco-pensamento'
+    const sm = document.createElement('summary')
+    sm.textContent = 'Raciocínio do modelo (thought)'
+    const texto = document.createElement('p')
+    texto.className = 'pensou'
+    texto.textContent = pensou
+    d.append(sm, texto)
+    caixa.append(d)
   }
 
   if (bruto !== null && bruto !== undefined) {
@@ -1088,6 +1190,7 @@ function negrito(alvo, texto) {
 }
 
 function espera(lado, titulo) {
+  el('raias').hidden = false
   const passo = document.createElement('div')
   passo.className = 'passo ' + lado + ' esperando'
 
@@ -1165,17 +1268,30 @@ async function chamarGroq(chave, modelo, mensagens, schema) {
   return d
 }
 
-async function chamarGemini(chave, modelo, contents, schema) {
-  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + modelo + ':generateContent', {
+async function chamarGemini(chave, modelo, contents, schema, pensar) {
+  const corpoReq = {
+    contents: contents,
+    tools: [{ functionDeclarations: [schema] }],
+    generationConfig: { temperature: 0 }
+  }
+  if (pensar) {
+    corpoReq.generationConfig.thinkingConfig = { includeThoughts: true }
+  }
+  let r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + modelo + ':generateContent', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chave },
-    body: JSON.stringify({
-      contents: contents,
-      tools: [{ functionDeclarations: [schema] }],
-      generationConfig: { temperature: 0 }
-    })
+    body: JSON.stringify(corpoReq)
   })
-  const d = await r.json()
+  let d = await r.json()
+  if (!r.ok && pensar && /thinking/i.test(JSON.stringify(d))) {
+    delete corpoReq.generationConfig.thinkingConfig
+    r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + modelo + ':generateContent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chave },
+      body: JSON.stringify(corpoReq)
+    })
+    d = await r.json()
+  }
   if (!r.ok) throw new Error(r.status + ' ' + JSON.stringify(d.error || d))
   return d
 }
@@ -1185,17 +1301,17 @@ function explicar(bruto) {
   if (/^429|RESOURCE_EXHAUSTED|rate.?limit/i.test(t)) {
     const dia = /PerDay/i.test(t)
     return dia
-      ? 'Cota diária esgotada para este modelo. O nível gratuito do AI Studio dá 20 requisições por dia em cada modelo, e um ciclo completo gasta 2. Escolha outro modelo no bloco 1, a cota é contada por modelo.'
+      ? 'Cota diária esgotada para este modelo. O nível gratuito do AI Studio dá 20 requisições por dia em cada modelo, e um ciclo completo gasta 2. Escolha outro modelo no painel à esquerda, a cota é contada por modelo.'
       : 'Muitas requisições em pouco tempo. Espere alguns segundos e execute de novo.'
   }
   if (/^404|NOT_FOUND|no longer available/i.test(t)) {
-    return 'Este modelo não está disponível para a sua chave. Escolha outro no bloco 1, ou clique em Buscar para listar só os liberados.'
+    return 'Este modelo não está disponível para a sua chave. Escolha outro no painel à esquerda, ou clique em Modelos para listar só os liberados.'
   }
   if (/^40[13]|API key not valid|Invalid API Key|PERMISSION_DENIED/i.test(t)) {
-    return 'A chave foi recusada pelo provedor. Confira se ela pertence ao provedor selecionado no bloco 1.'
+    return 'A chave foi recusada pelo provedor. Confira se ela pertence ao provedor selecionado no painel à esquerda.'
   }
   if (/^503|UNAVAILABLE|overloaded/i.test(t)) {
-    return 'O modelo continuou sobrecarregado depois de 3 tentativas. Escolha outro modelo no bloco 1.'
+    return 'O modelo continuou sobrecarregado depois de 3 tentativas. Escolha outro modelo no painel à esquerda.'
   }
   if (/Failed to fetch|NetworkError/i.test(t)) {
     return 'O navegador não conseguiu alcançar o provedor. Verifique a conexão e se alguma extensão está bloqueando a requisição.'
@@ -1210,7 +1326,7 @@ async function executarFuncaoLocal(corpo, args) {
 
 /* ---------- ciclos ---------- */
 
-async function rodarGroq(chave, modelo, schema, corpo, pedido) {
+async function rodarGroq(chave, modelo, schema, corpo, pedido, pensar) {
   const mensagens = [{ role: 'user', content: pedido }]
   const requisicao = { model: modelo, messages: mensagens, tools: [{ type: 'function', function: schema }] }
   cartao('local', 'Requisição enviada ao modelo',
@@ -1225,15 +1341,17 @@ async function rodarGroq(chave, modelo, schema, corpo, pedido) {
 
     const msg = dados.choices[0].message
     const chamadas = msg.tool_calls || []
+    const pensou = pensar ? String(msg.reasoning || msg.reasoning_content || '').trim() : ''
+    if (pensou) registrar('Raciocínio do modelo (thought)', 'modelo', pensou)
 
     if (chamadas.length === 0) {
-      cartao('remoto', 'Resposta final, sem chamada de ferramenta', msg.content || '(vazio)', dados, 'final')
+      cartao('remoto', 'Resposta final, sem chamada de ferramenta', msg.content || '(vazio)', dados, 'final', pensou)
       registrar('Resposta final', 'modelo', msg.content || '')
       return
     }
 
     const desc = chamadas.map(c => c.function.name + '(' + corta(c.function.arguments, 120) + ')').join('  ')
-    cartao('remoto', 'Chamada de ferramenta decidida pelo modelo', desc + '   [' + seg.toFixed(1) + 's]', chamadas)
+    cartao('remoto', 'Chamada de ferramenta decidida pelo modelo', desc + '   [' + seg.toFixed(1) + 's]', chamadas, null, pensou)
     registrar('Chamada de ferramenta', 'modelo', desc)
     mensagens.push(msg)
 
@@ -1256,7 +1374,7 @@ async function rodarGroq(chave, modelo, schema, corpo, pedido) {
     'O modelo continuou pedindo chamadas. Revise a description da ferramenta ou o retorno da função.', null, 'falha')
 }
 
-async function rodarGemini(chave, modelo, schema, corpo, pedido) {
+async function rodarGemini(chave, modelo, schema, corpo, pedido, pensar) {
   const contents = [{ role: 'user', parts: [{ text: pedido }] }]
   cartao('local', 'Requisição enviada ao modelo',
     'pedido do usuário e 1 ferramenta declarada: ' + schema.name,
@@ -1266,21 +1384,23 @@ async function rodarGemini(chave, modelo, schema, corpo, pedido) {
   for (let volta = 0; volta < 5; volta++) {
     const e = espera('remoto', 'Aguardando decisão do modelo')
     let dados
-    try { dados = await comRetentativa(() => chamarGemini(chave, modelo, contents, schema), e) }
+    try { dados = await comRetentativa(() => chamarGemini(chave, modelo, contents, schema, pensar), e) }
     finally { var seg = e.fim() }
 
     const parts = (dados.candidates && dados.candidates[0].content.parts) || []
     const chamadas = parts.filter(p => p.functionCall).map(p => p.functionCall)
+    const pensou = pensar ? parts.filter(p => p.thought && p.text).map(p => p.text).join('\n').trim() : ''
+    if (pensou) registrar('Raciocínio do modelo (thought)', 'modelo', pensou)
 
     if (chamadas.length === 0) {
-      const texto = parts.map(p => p.text || '').join('')
-      cartao('remoto', 'Resposta final, sem chamada de ferramenta', texto || '(vazio)', dados, 'final')
+      const texto = parts.filter(p => !p.thought).map(p => p.text || '').join('')
+      cartao('remoto', 'Resposta final, sem chamada de ferramenta', texto || '(vazio)', dados, 'final', pensou)
       registrar('Resposta final', 'modelo', texto)
       return
     }
 
     const desc = chamadas.map(c => c.name + '(' + assinatura(c.args) + ')').join('  ')
-    cartao('remoto', 'Chamada de ferramenta decidida pelo modelo', desc + '   [' + seg.toFixed(1) + 's]', chamadas)
+    cartao('remoto', 'Chamada de ferramenta decidida pelo modelo', desc + '   [' + seg.toFixed(1) + 's]', chamadas, null, pensou)
     registrar('Chamada de ferramenta', 'modelo', desc)
     contents.push({ role: 'model', parts: parts })
 
@@ -1344,6 +1464,7 @@ async function selar() {
   relatorio.codigo = await selo(relatorio.schema + relatorio.corpo + relatorio.pedido +
     relatorio.linhas.map(l => l.texto).join(''))
   el('codigo').innerHTML = 'código <b>' + relatorio.codigo + '</b>'
+  el('entrega').hidden = false
   el('copiar').disabled = false
   el('baixar').disabled = false
 }
@@ -1381,7 +1502,7 @@ el('executar').addEventListener('click', async () => {
   el('baixar').disabled = true
 
   if (!chave) {
-    cartao('falha', 'Falta a chave de API', 'Cole a chave do provedor escolhido no bloco 1.', null, 'falha')
+    cartao('falha', 'Falta a chave de API', 'Cole a chave do provedor escolhido no painel à esquerda.', null, 'falha')
     situacao('parado', 'ruim')
     return
   }
@@ -1416,8 +1537,9 @@ el('executar').addEventListener('click', async () => {
   situacao('executando', '')
 
   try {
-    if (provedor === 'groq') await rodarGroq(chave, modelo, schema, el('corpo').value, pedido)
-    else await rodarGemini(chave, modelo, schema, el('corpo').value, pedido)
+    const pensar = el('pensamento').checked
+    if (provedor === 'groq') await rodarGroq(chave, modelo, schema, el('corpo').value, pedido, pensar)
+    else await rodarGemini(chave, modelo, schema, el('corpo').value, pedido, pensar)
 
     await selar()
     situacao('ciclo concluído', 'ok')
