@@ -646,9 +646,10 @@ dialog::backdrop { background: rgba(8, 8, 11, .7) }
 .recado { font-size: 12px; color: var(--fraco); flex: 1; overflow-wrap: anywhere }
 .recado.ruim { color: var(--alerta) }
 .recado.ok { color: var(--local) }
+.recado.aviso { color: #f6c177 }
 
-button.acao.curto { width: auto; margin: 0; padding: 8px 18px; font-size: 13px }
-button.secundario { font-size: 12px }
+button.acao.curto { width: auto; margin: 0; padding: 8px 18px; font-size: 13px; flex-shrink: 0 }
+button.secundario { font-size: 12px; flex-shrink: 0 }
 
 .editor.alto > pre, .editor.alto > textarea { min-height: 46vh }
 
@@ -1021,7 +1022,529 @@ el('buscar').addEventListener('click', async () => {
 
 /* ---------- trilha ---------- */
 
-/* ---------- formatação ---------- */
+/* ---------- formatação e diagnóstico de erros ---------- */
+
+function calcLinhaCol(texto, pos) {
+  let linha = 1, col = 1
+  const limite = Math.max(0, Math.min(pos, texto.length))
+  for (let i = 0; i < limite; i++) {
+    if (texto[i] === '\n') {
+      linha++
+      col = 1
+    } else {
+      col++
+    }
+  }
+  return { linha, col }
+}
+
+function focarPosicaoNoCampo(campo, pos, len = 1) {
+  if (!campo) return
+  campo.focus()
+  const p = Math.max(0, Math.min(pos, campo.value.length))
+  const fim = Math.min(p + (len || 1), campo.value.length)
+  try {
+    campo.setSelectionRange(p, fim)
+  } catch (_) {}
+  const linhasAntes = campo.value.slice(0, p).split('\n').length
+  const totalLinhas = campo.value.split('\n').length
+  const alturaLinha = (campo.scrollHeight || 200) / Math.max(1, totalLinhas)
+  campo.scrollTop = Math.max(0, (linhasAntes - 3) * alturaLinha)
+  campo.dispatchEvent(new Event('scroll'))
+}
+
+function analisarErroJson(texto, erro) {
+  if (!texto || !texto.trim()) {
+    return {
+      linha: 1, coluna: 1, pos: 0,
+      mensagem: 'O JSON está vazio.',
+      ajuda: 'Cole ou digite a declaração da ferramenta.'
+    }
+  }
+
+  // 1. Comentários (inválidos no JSON)
+  const matchComent = texto.match(/(\/\/[^\n]*|\/\*[\s\S]*?\*\/)/)
+  if (matchComent) {
+    const p = matchComent.index
+    const { linha, col } = calcLinhaCol(texto, p)
+    return {
+      linha, coluna: col, pos: p,
+      mensagem: 'Comentários não são permitidos no padrão JSON.',
+      ajuda: 'Remova o comentário para tornar o JSON válido.'
+    }
+  }
+
+  // 2. Valores estilo Python (True, False, None)
+  const matchPy = texto.match(/\b(True|False|None)\b/)
+  if (matchPy) {
+    const p = matchPy.index
+    const { linha, col } = calcLinhaCol(texto, p)
+    const mapa = { True: 'true', False: 'false', None: 'null' }
+    return {
+      linha, coluna: col, pos: p,
+      mensagem: 'Valor estilo Python encontrado: "' + matchPy[1] + '".',
+      ajuda: 'No JSON use minúsculas: substitua por "' + mapa[matchPy[1]] + '".'
+    }
+  }
+
+  // 3. Extrair posição ou linha/coluna informada pelo motor JS
+  let pos = -1
+  let linha = null
+  let coluna = null
+
+  const msgErro = String(erro && erro.message ? erro.message : erro)
+  const matchPos = msgErro.match(/(?:position|char)\s+(\d+)/i)
+  const matchLineCol = msgErro.match(/line\s+(\d+)\s+column\s+(\d+)/i)
+
+  if (matchLineCol) {
+    linha = Number(matchLineCol[1])
+    coluna = Number(matchLineCol[2])
+  }
+  if (matchPos) {
+    pos = Number(matchPos[1])
+    if (!linha) {
+      const lc = calcLinhaCol(texto, pos)
+      linha = lc.linha
+      coluna = lc.col
+    }
+  }
+
+  // 4. Vírgula sobrando antes de fechar } ou ]
+  const matchTrailing = texto.match(/,(\s*[}\]])/)
+  if (matchTrailing) {
+    const p = matchTrailing.index
+    const lc = calcLinhaCol(texto, p)
+    return {
+      linha: lc.linha, coluna: lc.col, pos: p,
+      mensagem: 'Vírgula sobrando antes de "' + matchTrailing[1].trim() + '".',
+      ajuda: 'No JSON, o último item não deve ter vírgula após o valor.'
+    }
+  }
+
+  // 5. Aspas simples
+  const matchAspasSimples = texto.match(/'(?:\\.|[^'\\])*'/)
+  if (matchAspasSimples) {
+    const p = matchAspasSimples.index
+    const lc = calcLinhaCol(texto, p)
+    return {
+      linha: lc.linha, coluna: lc.col, pos: p,
+      mensagem: 'Uso de aspas simples (\') em vez de aspas duplas (").',
+      ajuda: 'No padrão JSON, tanto chaves quanto textos devem usar sempre aspas duplas (").'
+    }
+  }
+
+  // 6. Chave sem aspas
+  const matchSemAspas = texto.match(/([{,]\s*)([a-zA-Z0-9_$]+)(\s*:)/)
+  if (matchSemAspas && !/^(true|false|null)$/.test(matchSemAspas[2])) {
+    const p = matchSemAspas.index + matchSemAspas[1].length
+    const lc = calcLinhaCol(texto, p)
+    return {
+      linha: lc.linha, coluna: lc.col, pos: p,
+      mensagem: 'Chave de propriedade sem aspas: ' + matchSemAspas[2] + '.',
+      ajuda: 'Escreva "' + matchSemAspas[2] + '": com aspas duplas.'
+    }
+  }
+
+  // 7. Falta de vírgula entre propriedades
+  const matchFaltaVirgula = texto.match(/(["'0-9\]\}]|true|false|null)\s*\n\s*("[a-zA-Z0-9_$]+"\s*:)/)
+  if (matchFaltaVirgula) {
+    const p = matchFaltaVirgula.index
+    const lc = calcLinhaCol(texto, p)
+    return {
+      linha: lc.linha, coluna: lc.col, pos: p,
+      mensagem: 'Falta uma vírgula (,) separando as propriedades.',
+      ajuda: 'Adicione uma vírgula no final da linha ' + lc.linha + '.'
+    }
+  }
+
+  // 8. Balanço de chaves e colchetes
+  let chaves = 0, colchetes = 0
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto[i]
+    if (c === '{') chaves++
+    else if (c === '}') chaves--
+    else if (c === '[') colchetes++
+    else if (c === ']') colchetes--
+  }
+
+  if (chaves > 0) {
+    return {
+      linha: texto.split('\n').length, coluna: 1, pos: texto.length,
+      mensagem: 'Falta fechar ' + chaves + ' chave(s) "}".',
+      ajuda: 'Adicione "}" no final para fechar o bloco aberto.'
+    }
+  }
+  if (chaves < 0) {
+    return {
+      linha: linha || 1, coluna: coluna || 1, pos: pos >= 0 ? pos : 0,
+      mensagem: 'Chave de fechamento "}" em excesso.',
+      ajuda: 'Remova a chave sem abertura correspondente.'
+    }
+  }
+  if (colchetes > 0) {
+    return {
+      linha: texto.split('\n').length, coluna: 1, pos: texto.length,
+      mensagem: 'Falta fechar ' + colchetes + ' colchete(s) "]".',
+      ajuda: 'Adicione "]" para fechar a lista aberta.'
+    }
+  }
+
+  // 9. Mensagens genéricas traduzidas
+  let msg = msgErro
+  let ajuda = 'Revise a sintaxe no ponto indicado.'
+
+  if (/Unexpected end of JSON/i.test(msg)) {
+    msg = 'JSON incompleto ou interrompido.'
+    ajuda = 'Verifique se faltam chaves, colchetes ou aspas a fechar.'
+  } else if (/Expected property name or/i.test(msg)) {
+    msg = 'Esperado nome de propriedade entre aspas duplas.'
+    ajuda = 'Verifique se as chaves estão entre aspas duplas ou se há vírgula extra.'
+  } else if (/Expected ',' or '}'/i.test(msg)) {
+    msg = 'Esperada vírgula (,) ou fechamento "}".'
+    ajuda = 'Verifique se faltou uma vírgula separando as propriedades.'
+  }
+
+  return {
+    linha: linha || 1,
+    coluna: coluna || 1,
+    pos: pos >= 0 ? pos : 0,
+    mensagem: msg,
+    ajuda: ajuda
+  }
+}
+
+function analisarSchema(d) {
+  if (!d || typeof d !== 'object' || Array.isArray(d)) {
+    return { ruim: true, aviso: 'o schema deve ser um objeto JSON (ex: { "name": "...", "parameters": ... })' }
+  }
+  if (!d.name || typeof d.name !== 'string' || !d.name.trim()) {
+    return { ruim: true, aviso: 'falta o campo "name" identificando a função da ferramenta' }
+  }
+  const nome = d.name.trim()
+  if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(nome)) {
+    return { ruim: false, aviso: 'o "name" ("' + nome + '") possui caracteres especiais; use identificador padrão (ex: consultarStatus)' }
+  }
+  if (!d.parameters) {
+    return { ruim: true, aviso: 'falta o campo "parameters" descrevendo os argumentos da ferramenta' }
+  }
+  if (typeof d.parameters !== 'object' || Array.isArray(d.parameters)) {
+    return { ruim: true, aviso: '"parameters" precisa ser um objeto com "type": "object"' }
+  }
+  if (d.parameters.type !== 'object') {
+    return { ruim: false, aviso: '"parameters.type" deveria ser "object" (atualmente: "' + d.parameters.type + '")' }
+  }
+  if (!d.parameters.properties || typeof d.parameters.properties !== 'object' || Array.isArray(d.parameters.properties)) {
+    return { ruim: false, aviso: 'recomenda-se declarar "properties": {} dentro de "parameters"' }
+  }
+  if (d.parameters.required) {
+    if (!Array.isArray(d.parameters.required)) {
+      return { ruim: false, aviso: '"parameters.required" deve ser uma lista com os argumentos obrigatórios' }
+    }
+    const props = Object.keys(d.parameters.properties)
+    for (const req of d.parameters.required) {
+      if (!props.includes(req)) {
+        return { ruim: false, aviso: '"required" lista "' + req + '", que não foi declarado em "properties"' }
+      }
+    }
+  }
+  if (!d.description || typeof d.description !== 'string' || !d.description.trim()) {
+    return { ruim: false, aviso: 'sem "description", o modelo terá dificuldade para saber quando chamar a ferramenta' }
+  }
+  return null
+}
+
+function analisarEstruturaJs(codigo) {
+  let linha = 1, col = 0
+  const pilha = []
+  let i = 0
+  const n = codigo.length
+
+  while (i < n) {
+    const c = codigo[i]
+    col++
+
+    if (c === '\n') {
+      linha++
+      col = 0
+      i++
+      continue
+    }
+
+    // Comentário de linha única
+    if (c === '/' && codigo[i + 1] === '/') {
+      while (i < n && codigo[i] !== '\n') i++
+      continue
+    }
+
+    // Comentário multilinhas
+    if (c === '/' && codigo[i + 1] === '*') {
+      const inicioLinha = linha, inicioCol = col, inicioPos = i
+      i += 2; col += 2
+      let fechou = false
+      while (i < n) {
+        if (codigo[i] === '\n') { linha++; col = 0 }
+        else col++
+        if (codigo[i] === '*' && codigo[i + 1] === '/') {
+          fechou = true
+          i += 2; col++
+          break
+        }
+        i++
+      }
+      if (!fechou) {
+        return {
+          linha: inicioLinha, coluna: inicioCol, pos: inicioPos,
+          mensagem: 'Comentário multilinhas não finalizado.',
+          ajuda: 'Adicione "*/" para fechar o comentário.'
+        }
+      }
+      continue
+    }
+
+    // Strings simples e duplas
+    if (c === '"' || c === "'") {
+      const delim = c
+      const inicioLinha = linha, inicioCol = col, inicioPos = i
+      i++
+      let fechou = false
+      while (i < n) {
+        const atual = codigo[i]
+        col++
+        if (atual === '\\') {
+          i += 2; col++
+          continue
+        }
+        if (atual === '\n') {
+          return {
+            linha: inicioLinha, coluna: inicioCol, pos: inicioPos,
+            mensagem: 'Texto entre aspas não foi fechado nesta linha.',
+            ajuda: 'Feche as aspas (' + delim + ') antes da quebra de linha ou use crase (`) para textos multilinha.'
+          }
+        }
+        if (atual === delim) {
+          fechou = true
+          i++
+          break
+        }
+        i++
+      }
+      if (!fechou) {
+        return {
+          linha: inicioLinha, coluna: inicioCol, pos: inicioPos,
+          mensagem: 'Aspas (' + delim + ') abertas sem fechamento.',
+          ajuda: 'Adicione ' + delim + ' para fechar o texto.'
+        }
+      }
+      continue
+    }
+
+    // Crase (template literal)
+    if (c === '`') {
+      const inicioLinha = linha, inicioCol = col, inicioPos = i
+      i++
+      let fechou = false
+      while (i < n) {
+        const atual = codigo[i]
+        if (atual === '\n') { linha++; col = 0 }
+        else col++
+        if (atual === '\\') {
+          i += 2; col++
+          continue
+        }
+        if (atual === '$' && codigo[i + 1] === '{') {
+          pilha.push({ char: '`${', linha, col, pos: i })
+          i += 2; col++
+          break
+        }
+        if (atual === '`') {
+          fechou = true
+          i++
+          break
+        }
+        i++
+      }
+      if (!fechou && !pilha.some(p => p.char === '`${')) {
+        return {
+          linha: inicioLinha, coluna: inicioCol, pos: inicioPos,
+          mensagem: 'Crase (`) de template literal não foi fechada.',
+          ajuda: 'Adicione a crase (`) para fechar o texto.'
+        }
+      }
+      continue
+    }
+
+    // Abertura de delimitadores
+    if (c === '{' || c === '(' || c === '[') {
+      pilha.push({ char: c, linha, col, pos: i })
+      i++
+      continue
+    }
+
+    // Fechamento de delimitadores
+    if (c === '}' || c === ')' || c === ']') {
+      if (pilha.length === 0) {
+        return {
+          linha, coluna: col, pos: i,
+          mensagem: 'Fechamento "' + c + '" sem abertura correspondente.',
+          ajuda: 'Remova o caractere "' + c + '" sobressalente ou verifique a abertura do bloco.'
+        }
+      }
+      const topo = pilha.pop()
+      const pares = { '{': '}', '(': ')', '[': ']', '`${': '}' }
+      if (pares[topo.char] !== c) {
+        const esperado = pares[topo.char]
+        const nomeTopo = topo.char === '`${' ? '${' : topo.char
+        return {
+          linha, coluna: col, pos: i,
+          mensagem: 'Esperado "' + esperado + '" para fechar "' + nomeTopo + '" (da linha ' + topo.linha + '), mas foi encontrado "' + c + '".',
+          ajuda: 'Corrija o fechamento para corresponder ao bloco aberto.'
+        }
+      }
+      if (topo.char === '`${') {
+        let fechou = false
+        while (i < n) {
+          const atual = codigo[i]
+          if (atual === '\n') { linha++; col = 0 }
+          else col++
+          if (atual === '\\') { i += 2; col++; continue }
+          if (atual === '$' && codigo[i + 1] === '{') {
+            pilha.push({ char: '`${', linha, col, pos: i })
+            i += 2; col++
+            break
+          }
+          if (atual === '`') {
+            fechou = true
+            i++
+            break
+          }
+          i++
+        }
+      }
+      i++
+      continue
+    }
+
+    i++
+  }
+
+  if (pilha.length > 0) {
+    const topo = pilha[pilha.length - 1]
+    const pares = { '{': '}', '(': ')', '[': ']', '`${': '}`' }
+    const nomeTopo = topo.char === '`${' ? '${' : topo.char
+    return {
+      linha: topo.linha, coluna: topo.col, pos: topo.pos,
+      mensagem: 'Faltou fechar "' + nomeTopo + '" aberto na linha ' + topo.linha + '.',
+      ajuda: 'Adicione "' + pares[topo.char] + '" para fechar o bloco correspondente.'
+    }
+  }
+
+  return null
+}
+
+function traduzirMensagemErroJs(msg) {
+  if (/Function statements require a function name/i.test(msg)) {
+    return 'Declaração de função precisa de um nome (ex: function consultarStatus(args) { ... }).'
+  }
+  if (/missing \) after argument/i.test(msg)) {
+    return 'Faltou fechar parênteses ")" na lista de argumentos.'
+  }
+  if (/missing \) after condition/i.test(msg)) {
+    return 'Faltou fechar parênteses ")" na condição (ex: if, while).'
+  }
+  if (/missing \} after function/i.test(msg)) {
+    return 'Faltou fechar chave "}" no corpo da função.'
+  }
+  if (/Unexpected end of input/i.test(msg)) {
+    return 'Código incompleto: faltam instruções, chaves ou parênteses a serem fechados.'
+  }
+  if (/Unexpected token '([^']+)'/i.test(msg)) {
+    const t = msg.match(/Unexpected token '([^']+)'/i)[1]
+    return 'Token inesperado: "' + t + '". Verifique a pontuação antes ou depois.'
+  }
+  if (/Unexpected identifier '([^']+)'/i.test(msg)) {
+    const id = msg.match(/Unexpected identifier '([^']+)'/i)[1]
+    return 'Identificador inesperado "' + id + '". Pode faltar vírgula ou ponto e vírgula antes dele.'
+  }
+  if (/Invalid or unexpected token/i.test(msg)) {
+    return 'Caractere inválido ou inesperado (verifique aspas ou caracteres especiais).'
+  }
+  if (/Identifier '([^']+)' has already been declared/i.test(msg)) {
+    const id = msg.match(/Identifier '([^']+)' has already been declared/i)[1]
+    return 'A variável "' + id + '" já foi declarada anteriormente neste escopo.'
+  }
+  if (/await is only valid in async/i.test(msg)) {
+    return 'O comando "await" só pode ser usado dentro de funções "async".'
+  }
+  return msg
+}
+
+function diagnosticarErroJs(codigo, erro) {
+  const errEstrutura = analisarEstruturaJs(codigo)
+  if (errEstrutura) return errEstrutura
+
+  const lines = codigo.split('\n')
+  let posLinha = 0
+  for (let i = 1; i <= lines.length; i++) {
+    const slice = lines.slice(0, i).join('\n')
+    let braces = 0, parens = 0, brackets = 0
+    for (let c of slice) {
+      if (c === '{') braces++
+      else if (c === '}') braces = Math.max(0, braces - 1)
+      else if (c === '(') parens++
+      else if (c === ')') parens = Math.max(0, parens - 1)
+      else if (c === '[') brackets++
+      else if (c === ']') brackets = Math.max(0, brackets - 1)
+    }
+    const testCode = slice + '\n' + ']'.repeat(brackets) + ')'.repeat(parens) + '}'.repeat(braces)
+    try {
+      new Function('args', testCode)
+    } catch (e) {
+      if (!/Unexpected end of input|missing [)}\]]/i.test(e.message)) {
+        const linhaTexto = lines[i - 1]
+        const col = Math.max(1, linhaTexto.search(/\S/) + 1)
+        return {
+          linha: i,
+          coluna: col,
+          pos: posLinha + col - 1,
+          mensagem: traduzirMensagemErroJs(e.message),
+          ajuda: 'Revise a instrução nesta linha.'
+        }
+      }
+    }
+    posLinha += lines[i - 1].length + 1
+  }
+
+  return {
+    linha: 1,
+    coluna: 1,
+    pos: 0,
+    mensagem: traduzirMensagemErroJs((erro && erro.message) ? erro.message : String(erro)),
+    ajuda: 'Revise a sintaxe da função JavaScript.'
+  }
+}
+
+function analisarSemanticaJs(codigo, nomeEsperado) {
+  const avisos = []
+  const nomeJs = extrairNomeFuncaoJs(codigo)
+  if (!nomeJs) {
+    avisos.push('declare a função: "function ' + (nomeEsperado || 'minhaFuncao') + '(args) { ... }"')
+  } else if (nomeEsperado && nomeJs !== nomeEsperado) {
+    avisos.push('nome divergente: no JS está "' + nomeJs + '", mas no schema é "' + nomeEsperado + '"')
+  }
+
+  const temArgs = /\bfunction(?:\s+[a-zA-Z0-9_$]+)?\s*\(\s*args\b/.test(codigo) ||
+                  /\((?:[^)]*,\s*)?args\b/.test(codigo) ||
+                  /\bargs\s*=>/.test(codigo)
+  if (!temArgs) {
+    avisos.push('adicione o parâmetro "(args)" para receber os dados do modelo')
+  }
+
+  if (!/\breturn\b/.test(codigo)) {
+    avisos.push('adicione comando "return" para devolver a resposta ao modelo')
+  }
+
+  return avisos
+}
 
 function formatarJson(texto) {
   return JSON.stringify(JSON.parse(texto), null, 2)
@@ -1052,14 +1575,81 @@ document.querySelectorAll('[data-formata]').forEach(botao => {
     const alvo = botao.dataset.formata
     const campo = el(alvo)
     const recado = el(alvo === 'schema' ? 'recadoSchema' : 'recadoCorpo')
-    try {
-      campo.value = FORMATADOR[alvo](campo.value)
+    const valorAtual = campo.value
+
+    if (alvo === 'schema') {
+      if (!valorAtual.trim()) {
+        recado.textContent = 'o JSON está vazio. Cole ou digite a declaração da ferramenta.'
+        recado.className = 'recado ruim'
+        return
+      }
+
+      let parsed
+      try {
+        parsed = JSON.parse(valorAtual)
+      } catch (erro) {
+        const diag = analisarErroJson(valorAtual, erro)
+        focarPosicaoNoCampo(campo, diag.pos, 1)
+        recado.textContent = 'linha ' + diag.linha + (diag.coluna ? ', col ' + diag.coluna : '') + ': ' + diag.mensagem + ' ' + diag.ajuda
+        recado.className = 'recado ruim'
+        return
+      }
+
+      campo.value = JSON.stringify(parsed, null, 2)
       campo.repintar()
-      recado.textContent = 'formatado'
-      recado.className = 'recado ok'
-    } catch (erro) {
-      recado.textContent = 'não deu para formatar: ' + String(erro.message || erro)
-      recado.className = 'recado ruim'
+      guardarCampos()
+      atualizarResumos()
+
+      const semantica = analisarSchema(parsed)
+      if (semantica) {
+        recado.textContent = 'formatado (' + (semantica.ruim ? 'atenção: ' : 'dica: ') + semantica.aviso + ')'
+        recado.className = semantica.ruim ? 'recado ruim' : 'recado aviso'
+      } else {
+        recado.textContent = 'formatado com sucesso (JSON e schema válidos)'
+        recado.className = 'recado ok'
+      }
+
+    } else {
+      // alvo === 'corpo'
+      if (!valorAtual.trim()) {
+        recado.textContent = 'o código está vazio. Declare a função da ferramenta.'
+        recado.className = 'recado ruim'
+        return
+      }
+
+      let erroJs = null
+      try {
+        new Function('args', valorAtual)
+      } catch (e) {
+        erroJs = diagnosticarErroJs(valorAtual, e)
+      }
+
+      if (erroJs) {
+        if (erroJs.pos >= 0) focarPosicaoNoCampo(campo, erroJs.pos, 1)
+        recado.textContent = 'linha ' + erroJs.linha + (erroJs.coluna ? ', col ' + erroJs.coluna : '') + ': ' + erroJs.mensagem + ' ' + (erroJs.ajuda || '')
+        recado.className = 'recado ruim'
+        return
+      }
+
+      campo.value = formatarJs(valorAtual)
+      campo.repintar()
+      guardarCampos()
+      atualizarResumos()
+
+      let nomeEsperado = ''
+      try {
+        const s = JSON.parse(el('schema').value)
+        nomeEsperado = String(s.name || '').trim()
+      } catch (_) {}
+
+      const avisosSemanticos = analisarSemanticaJs(campo.value, nomeEsperado)
+      if (avisosSemanticos.length > 0) {
+        recado.textContent = 'formatado (atenção: ' + avisosSemanticos.join('; ') + ')'
+        recado.className = 'recado aviso'
+      } else {
+        recado.textContent = 'formatado com sucesso (função alinhada e válida)'
+        recado.className = 'recado ok'
+      }
     }
   })
 })
@@ -1082,8 +1672,32 @@ document.querySelectorAll('dialog').forEach(janela => {
   })
 })
 
-el('schema').addEventListener('input', () => { atualizarResumos(); guardarCampos() })
-el('corpo').addEventListener('input', () => { atualizarResumos(); guardarCampos() })
+el('schema').addEventListener('input', () => {
+  const recadoSchema = el('recadoSchema')
+  if (recadoSchema && recadoSchema.classList.contains('ruim')) {
+    try {
+      JSON.parse(el('schema').value)
+      recadoSchema.textContent = 'JSON válido (clique em Formatar JSON para organizar)'
+      recadoSchema.className = 'recado'
+    } catch (_) {}
+  }
+  atualizarResumos()
+  guardarCampos()
+})
+
+el('corpo').addEventListener('input', () => {
+  const recadoCorpo = el('recadoCorpo')
+  if (recadoCorpo && recadoCorpo.classList.contains('ruim')) {
+    try {
+      new Function('args', el('corpo').value)
+      recadoCorpo.textContent = ''
+      recadoCorpo.className = 'recado'
+    } catch (_) {}
+  }
+  atualizarResumos()
+  guardarCampos()
+})
+
 el('pedido').addEventListener('input', () => localStorage.setItem('tc_pedido', el('pedido').value))
 
 function guardarCampos() {
@@ -1106,7 +1720,8 @@ function atualizarResumos() {
     schemaEl.textContent = (d.name || 'sem name') + '(' + params.join(', ') + ')'
     schemaEl.className = 'valor'
   } catch (erro) {
-    schemaEl.textContent = 'JSON inválido'
+    const diag = analisarErroJson(el('schema').value, erro)
+    schemaEl.textContent = 'JSON inválido (l. ' + diag.linha + ')'
     schemaEl.className = 'valor ruim'
   }
 
@@ -1116,24 +1731,35 @@ function atualizarResumos() {
   const resumoCorpo = el('resumoCorpo')
   const recadoCorpo = el('recadoCorpo')
 
+  const erroSintaxe = analisarEstruturaJs(corpoValor)
+  if (erroSintaxe) {
+    resumoCorpo.textContent = 'erro sintaxe (l. ' + erroSintaxe.linha + ')'
+    resumoCorpo.className = 'valor ruim'
+    if (recadoCorpo && !recadoCorpo.classList.contains('ruim')) {
+      recadoCorpo.textContent = 'linha ' + erroSintaxe.linha + ': ' + erroSintaxe.mensagem
+      recadoCorpo.className = 'recado ruim'
+    }
+    return
+  }
+
   if (!nomeJs) {
     resumoCorpo.textContent = 'função não declarada (' + linhas + (linhas === 1 ? ' linha)' : ' linhas)')
     resumoCorpo.className = 'valor ruim'
-    if (recadoCorpo) {
+    if (recadoCorpo && !recadoCorpo.classList.contains('ruim')) {
       recadoCorpo.textContent = nomeEsperado ? 'declare function ' + nomeEsperado + '(args)' : 'declare a função em JavaScript'
       recadoCorpo.className = 'recado ruim'
     }
   } else if (nomeEsperado && nomeJs !== nomeEsperado) {
     resumoCorpo.textContent = 'nome divergente: ' + nomeJs + ' ≠ ' + nomeEsperado
     resumoCorpo.className = 'valor ruim'
-    if (recadoCorpo) {
+    if (recadoCorpo && !recadoCorpo.classList.contains('ruim')) {
       recadoCorpo.textContent = 'nome divergente: declare function ' + nomeEsperado + '(args)'
       recadoCorpo.className = 'recado ruim'
     }
   } else {
     resumoCorpo.textContent = 'function ' + nomeJs + ' (' + linhas + (linhas === 1 ? ' linha)' : ' linhas)')
     resumoCorpo.className = 'valor'
-    if (recadoCorpo) {
+    if (recadoCorpo && !recadoCorpo.classList.contains('ruim')) {
       recadoCorpo.textContent = 'função alinhada ao schema'
       recadoCorpo.className = 'recado ok'
     }
@@ -1555,12 +2181,29 @@ el('executar').addEventListener('click', async () => {
   try {
     schema = JSON.parse(el('schema').value)
   } catch (erro) {
-    cartao('falha', 'JSON da declaração inválido', String(erro), null, 'falha')
+    const diag = analisarErroJson(el('schema').value, erro)
+    cartao('falha', 'JSON da declaração inválido',
+      'Linha ' + diag.linha + (diag.coluna ? ', col ' + diag.coluna : '') + ': ' + diag.mensagem + '\n' + diag.ajuda, null, 'falha')
     situacao('parado', 'ruim')
     return
   }
-  if (!schema.name || !schema.parameters) {
-    cartao('falha', 'Declaração incompleta', 'A declaração precisa de "name" e de "parameters".', null, 'falha')
+
+  const erroSchema = analisarSchema(schema)
+  if (erroSchema && erroSchema.ruim) {
+    cartao('falha', 'Declaração incompleta', erroSchema.aviso, null, 'falha')
+    situacao('parado', 'ruim')
+    return
+  }
+
+  let erroJs = null
+  try {
+    new Function('args', el('corpo').value)
+  } catch (e) {
+    erroJs = diagnosticarErroJs(el('corpo').value, e)
+  }
+  if (erroJs) {
+    cartao('falha', 'Sintaxe da função JavaScript inválida',
+      'Linha ' + erroJs.linha + (erroJs.coluna ? ', col ' + erroJs.coluna : '') + ': ' + erroJs.mensagem + '\n' + (erroJs.ajuda || ''), null, 'falha')
     situacao('parado', 'ruim')
     return
   }
