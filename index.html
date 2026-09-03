@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23121214'/%3E%3Ctext x='16' y='23' font-size='18' font-family='monospace' fill='%2304d361' text-anchor='middle'%3E%7B%7D%3C/text%3E%3C/svg%3E">
 <title>Runtime de Tool Calling</title>
 <style>
   :root {
@@ -82,7 +83,7 @@
   }
   .passo .ator { color: var(--apagado); font-size: 0.75rem; margin-left: auto }
   .passo pre {
-    margin: 0; padding: 12px; overflow-x: auto;
+    margin: 0; padding: 12px; overflow: auto; max-height: 320px;
     font-family: ui-monospace, 'SF Mono', Consolas, monospace;
     font-size: 0.78rem; color: var(--texto); white-space: pre-wrap; word-break: break-word;
   }
@@ -95,7 +96,7 @@
 <body>
 <main>
   <h1>Runtime de Tool Calling</h1>
-  <p class="sub">O modelo decide qual funcao chamar e com quais argumentos. Esta pagina executa a funcao e devolve o resultado, que e o trabalho da caixa Aplicacao / Runtime do diagrama da aula.</p>
+  <p class="sub">O modelo decide qual função chamar e com quais argumentos. Esta página executa a função e devolve o resultado, que é o trabalho da caixa Aplicação / Runtime do diagrama da aula.</p>
 
   <div class="grade">
     <div>
@@ -115,11 +116,11 @@
           <button class="secundario" id="salvar">Guardar chave neste navegador</button>
           <button class="secundario" id="limpar">Apagar chave</button>
         </div>
-        <p class="aviso">A chave fica no localStorage deste navegador e sai daqui apenas nas requisicoes para o provedor. A pagina e estatica e nao tem servidor proprio. Apague a chave antes de sair do laboratorio.</p>
+        <p class="aviso">A chave fica no localStorage deste navegador e sai daqui apenas nas requisições para o provedor. A página é estática e não tem servidor próprio. Apague a chave antes de sair do laboratório.</p>
       </section>
 
       <section>
-        <h2>2. Declaracao da ferramenta</h2>
+        <h2>2. Declaração da ferramenta</h2>
         <label for="schema">JSON Schema. O mesmo texto serve para os dois provedores.</label>
         <textarea id="schema" rows="16" spellcheck="false"></textarea>
       </section>
@@ -127,13 +128,13 @@
 
     <div>
       <section>
-        <h2>3. Implementacao da funcao</h2>
+        <h2>3. Implementação da função</h2>
         <label for="corpo">Corpo em JavaScript. Recebe o objeto <code>args</code> e devolve o resultado com <code>return</code>.</label>
         <textarea id="corpo" rows="14" spellcheck="false"></textarea>
       </section>
 
       <section>
-        <h2>4. Pedido do usuario</h2>
+        <h2>4. Pedido do usuário</h2>
         <label for="pedido">Frase enviada ao modelo</label>
         <input id="pedido" spellcheck="false">
         <div class="barra">
@@ -158,17 +159,17 @@ const PADRAO_MODELO = {
 
 const EXEMPLO_SCHEMA = `{
   "name": "consultarStatusPedido",
-  "description": "Retorna a situacao atual de um pedido da loja. Chame sempre que o usuario citar um codigo de pedido.",
+  "description": "Retorna a situação atual de um pedido da loja. Chame sempre que o usuário citar um código de pedido.",
   "parameters": {
     "type": "object",
     "properties": {
       "codigoPedido": {
         "type": "string",
-        "description": "Codigo no formato PED-0000"
+        "description": "Código no formato PED-0000"
       },
       "incluirHistorico": {
         "type": "boolean",
-        "description": "Retorna tambem as mudancas de status"
+        "description": "Retorna também as mudanças de status"
       }
     },
     "required": ["codigoPedido"]
@@ -176,13 +177,13 @@ const EXEMPLO_SCHEMA = `{
 }`
 
 const EXEMPLO_CORPO = `const banco = {
-  'PED-1042': { status: 'em separacao', previsaoEntrega: '2026-09-09' },
+  'PED-1042': { status: 'em separação', previsaoEntrega: '2026-09-09' },
   'PED-2077': { status: 'entregue', previsaoEntrega: '2026-08-28' }
 }
 
 const achado = banco[args.codigoPedido]
 if (!achado) {
-  return { erro: 'pedido nao encontrado' }
+  return { erro: 'pedido não encontrado' }
 }
 
 return {
@@ -291,7 +292,7 @@ async function executarFuncaoLocal(corpo, args) {
 
 async function rodarGroq(chave, modelo, schema, corpo, pedido) {
   const mensagens = [{ role: 'user', content: pedido }]
-  escrever('.', 'Requisicao enviada ao modelo', 'Aplicacao / Runtime', {
+  escrever('.', 'Requisição enviada ao modelo', 'Aplicação / Runtime', {
     model: modelo, messages: mensagens, tools: [{ type: 'function', function: schema }]
   })
 
@@ -311,7 +312,7 @@ async function rodarGroq(chave, modelo, schema, corpo, pedido) {
     for (const chamada of chamadas) {
       const args = JSON.parse(chamada.function.arguments || '{}')
       const resultado = await executarFuncaoLocal(corpo, args)
-      escrever('.', 'Funcao executada localmente: ' + chamada.function.name, 'Aplicacao / Runtime', {
+      escrever('.', 'Função executada localmente: ' + chamada.function.name, 'Aplicação / Runtime', {
         argumentos: args, retorno: resultado
       })
       mensagens.push({
@@ -321,15 +322,15 @@ async function rodarGroq(chave, modelo, schema, corpo, pedido) {
       })
     }
 
-    escrever('.', 'Resultado devolvido ao modelo', 'Aplicacao / Runtime', mensagens[mensagens.length - 1])
+    escrever('.', 'Resultado devolvido ao modelo', 'Aplicação / Runtime', mensagens[mensagens.length - 1])
   }
 
-  escrever('!', 'Limite de 5 voltas atingido', 'Aplicacao / Runtime', 'O modelo continuou pedindo chamadas. Revise a description ou o retorno da funcao.', 'erro')
+  escrever('!', 'Limite de 5 voltas atingido', 'Aplicação / Runtime', 'O modelo continuou pedindo chamadas. Revise a description ou o retorno da função.', 'erro')
 }
 
 async function rodarGemini(chave, modelo, schema, corpo, pedido) {
   const contents = [{ role: 'user', parts: [{ text: pedido }] }]
-  escrever('.', 'Requisicao enviada ao modelo', 'Aplicacao / Runtime', {
+  escrever('.', 'Requisição enviada ao modelo', 'Aplicação / Runtime', {
     contents: contents, tools: [{ functionDeclarations: [schema] }]
   })
 
@@ -351,17 +352,17 @@ async function rodarGemini(chave, modelo, schema, corpo, pedido) {
     for (const chamada of chamadas) {
       const args = chamada.args || {}
       const resultado = await executarFuncaoLocal(corpo, args)
-      escrever('.', 'Funcao executada localmente: ' + chamada.name, 'Aplicacao / Runtime', {
+      escrever('.', 'Função executada localmente: ' + chamada.name, 'Aplicação / Runtime', {
         argumentos: args, retorno: resultado
       })
       retornos.push({ functionResponse: { name: chamada.name, response: { resultado: resultado } } })
     }
 
     contents.push({ role: 'user', parts: retornos })
-    escrever('.', 'Resultado devolvido ao modelo', 'Aplicacao / Runtime', retornos)
+    escrever('.', 'Resultado devolvido ao modelo', 'Aplicação / Runtime', retornos)
   }
 
-  escrever('!', 'Limite de 5 voltas atingido', 'Aplicacao / Runtime', 'O modelo continuou pedindo chamadas. Revise a description ou o retorno da funcao.', 'erro')
+  escrever('!', 'Limite de 5 voltas atingido', 'Aplicação / Runtime', 'O modelo continuou pedindo chamadas. Revise a description ou o retorno da função.', 'erro')
 }
 
 el('executar').addEventListener('click', async () => {
@@ -375,7 +376,7 @@ el('executar').addEventListener('click', async () => {
   el('estado').textContent = ''
 
   if (!chave) {
-    escrever('!', 'Falta a chave de API', 'Aplicacao / Runtime', 'Cole a chave do provedor escolhido no campo do bloco 1.', 'erro')
+    escrever('!', 'Falta a chave de API', 'Aplicação / Runtime', 'Cole a chave do provedor escolhido no campo do bloco 1.', 'erro')
     return
   }
 
@@ -383,7 +384,7 @@ el('executar').addEventListener('click', async () => {
   try {
     schema = JSON.parse(el('schema').value)
   } catch (erro) {
-    escrever('!', 'JSON da declaracao invalido', 'Aplicacao / Runtime', String(erro), 'erro')
+    escrever('!', 'JSON da declaração inválido', 'Aplicação / Runtime', String(erro), 'erro')
     return
   }
 
@@ -400,9 +401,9 @@ el('executar').addEventListener('click', async () => {
     } else {
       await rodarGemini(chave, modelo, schema, el('corpo').value, pedido)
     }
-    el('estado').textContent = 'ciclo concluido'
+    el('estado').textContent = 'ciclo concluído'
   } catch (erro) {
-    escrever('!', 'Falha na execucao', 'Aplicacao / Runtime', String(erro && erro.message ? erro.message : erro), 'erro')
+    escrever('!', 'Falha na execução', 'Aplicação / Runtime', String(erro && erro.message ? erro.message : erro), 'erro')
     el('estado').textContent = 'falhou'
   } finally {
     el('executar').disabled = false
