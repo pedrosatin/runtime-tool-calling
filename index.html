@@ -736,9 +736,9 @@ button.secundario { font-size: 12px; flex-shrink: 0 }
 
 <dialog id="mSchema">
   <form method="dialog" class="janela larga">
-    <header><h3>Declaração da ferramenta <span class="termo">(schema JSON)</span></h3><button value="fechar" class="fechar" aria-label="Fechar">x</button></header>
+    <header><h3>Declaração de ferramentas <span class="termo">(schema JSON)</span></h3><button value="fechar" class="fechar" aria-label="Fechar">x</button></header>
     <div class="conteudo">
-      <p class="dica">O que o modelo enxerga. Ele nunca vê o corpo da função, decide pela <code>description</code> e pelos tipos declarados.</p>
+      <p class="dica">O que o modelo enxerga. Aceita um objeto único ou um array <code>[...]</code> com múltiplas ferramentas. O modelo decide qual ferramenta chamar pela <code>description</code> e pelos parâmetros.</p>
       <div class="editor alto"><pre id="schemaRealce" aria-hidden="true"></pre><textarea id="schema" spellcheck="false"></textarea></div>
     </div>
     <footer>
@@ -928,6 +928,23 @@ function aplicarCenario(nome) {
   el('pedido').value = c.pedido
   repintarTudo()
   atualizarResumos()
+}
+
+function extrairNomesFuncoesJs(codigo) {
+  const nomes = []
+  const re = /(?:async\s+)?function\s+([a-zA-Z0-9_$]+)|(?:const|let|var)\s+([a-zA-Z0-9_$]+)\s*=\s*(?:async\s*)?(?:function\b|(?:\([^)]*\)|[a-zA-Z0-9_$]+)\s*=>)/g
+  let m
+  while ((m = re.exec(codigo)) !== null) {
+    const nome = m[1] || m[2]
+    if (nome && !nomes.includes(nome)) {
+      nomes.push(nome)
+    }
+  }
+  return nomes
+}
+
+function extrairNomeFuncaoJs(codigo) {
+  return extrairNomesFuncoesJs(codigo)[0] || ''
 }
 
 function repintarTudo() {
@@ -1213,44 +1230,68 @@ function analisarErroJson(texto, erro) {
   }
 }
 
-function analisarSchema(d) {
+function analisarObjetoFerramenta(d, indice) {
+  const prefixo = indice !== undefined ? 'ferramenta [' + (indice + 1) + ']: ' : ''
   if (!d || typeof d !== 'object' || Array.isArray(d)) {
-    return { ruim: true, aviso: 'o schema deve ser um objeto JSON (ex: { "name": "...", "parameters": ... })' }
+    return { ruim: true, aviso: prefixo + 'deve ser um objeto JSON (ex: { "name": "...", "parameters": ... })' }
   }
   if (!d.name || typeof d.name !== 'string' || !d.name.trim()) {
-    return { ruim: true, aviso: 'falta o campo "name" identificando a função da ferramenta' }
+    return { ruim: true, aviso: prefixo + 'falta o campo "name" identificando a função da ferramenta' }
   }
   const nome = d.name.trim()
   if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(nome)) {
-    return { ruim: false, aviso: 'o "name" ("' + nome + '") possui caracteres especiais; use identificador padrão (ex: consultarStatus)' }
+    return { ruim: false, aviso: prefixo + 'o "name" ("' + nome + '") possui caracteres especiais; use identificador padrão (ex: consultarStatus)' }
   }
   if (!d.parameters) {
-    return { ruim: true, aviso: 'falta o campo "parameters" descrevendo os argumentos da ferramenta' }
+    return { ruim: true, aviso: prefixo + 'falta o campo "parameters" descrevendo os argumentos da ferramenta' }
   }
   if (typeof d.parameters !== 'object' || Array.isArray(d.parameters)) {
-    return { ruim: true, aviso: '"parameters" precisa ser um objeto com "type": "object"' }
+    return { ruim: true, aviso: prefixo + '"parameters" precisa ser um objeto com "type": "object"' }
   }
   if (d.parameters.type !== 'object') {
-    return { ruim: false, aviso: '"parameters.type" deveria ser "object" (atualmente: "' + d.parameters.type + '")' }
+    return { ruim: false, aviso: prefixo + '"parameters.type" deveria ser "object" (atualmente: "' + d.parameters.type + '")' }
   }
   if (!d.parameters.properties || typeof d.parameters.properties !== 'object' || Array.isArray(d.parameters.properties)) {
-    return { ruim: false, aviso: 'recomenda-se declarar "properties": {} dentro de "parameters"' }
+    return { ruim: false, aviso: prefixo + 'recomenda-se declarar "properties": {} dentro de "parameters"' }
   }
   if (d.parameters.required) {
     if (!Array.isArray(d.parameters.required)) {
-      return { ruim: false, aviso: '"parameters.required" deve ser uma lista com os argumentos obrigatórios' }
+      return { ruim: false, aviso: prefixo + '"parameters.required" deve ser uma lista com os argumentos obrigatórios' }
     }
     const props = Object.keys(d.parameters.properties)
     for (const req of d.parameters.required) {
       if (!props.includes(req)) {
-        return { ruim: false, aviso: '"required" lista "' + req + '", que não foi declarado em "properties"' }
+        return { ruim: false, aviso: prefixo + '"required" lista "' + req + '", que não foi declarado em "properties"' }
       }
     }
   }
   if (!d.description || typeof d.description !== 'string' || !d.description.trim()) {
-    return { ruim: false, aviso: 'sem "description", o modelo terá dificuldade para saber quando chamar a ferramenta' }
+    return { ruim: false, aviso: prefixo + 'sem "description", o modelo terá dificuldade para saber quando chamar a ferramenta' }
   }
   return null
+}
+
+function analisarSchema(d) {
+  if (!d) {
+    return { ruim: true, aviso: 'o schema está vazio' }
+  }
+  if (Array.isArray(d)) {
+    if (d.length === 0) {
+      return { ruim: true, aviso: 'o array de ferramentas está vazio; declare pelo menos uma ferramenta' }
+    }
+    const nomes = new Set()
+    for (let i = 0; i < d.length; i++) {
+      const err = analisarObjetoFerramenta(d[i], i)
+      if (err) return err
+      const n = String((d[i] && d[i].name) || '').trim()
+      if (nomes.has(n)) {
+        return { ruim: true, aviso: 'ferramenta com nome duplicado no array: "' + n + '"' }
+      }
+      nomes.add(n)
+    }
+    return null
+  }
+  return analisarObjetoFerramenta(d)
 }
 
 function analisarEstruturaJs(codigo) {
@@ -1523,13 +1564,22 @@ function diagnosticarErroJs(codigo, erro) {
   }
 }
 
-function analisarSemanticaJs(codigo, nomeEsperado) {
+function analisarSemanticaJs(codigo, nomesEsperados) {
+  const listaEsperada = Array.isArray(nomesEsperados) ? nomesEsperados : (nomesEsperados ? [nomesEsperados] : [])
   const avisos = []
-  const nomeJs = extrairNomeFuncaoJs(codigo)
-  if (!nomeJs) {
-    avisos.push('declare a função: "function ' + (nomeEsperado || 'minhaFuncao') + '(args) { ... }"')
-  } else if (nomeEsperado && nomeJs !== nomeEsperado) {
-    avisos.push('nome divergente: no JS está "' + nomeJs + '", mas no schema é "' + nomeEsperado + '"')
+  const nomesJs = extrairNomesFuncoesJs(codigo)
+
+  if (nomesJs.length === 0) {
+    if (listaEsperada.length > 0) {
+      avisos.push('declare as funções: ' + listaEsperada.map(n => '"function ' + n + '(args) { ... }"').join(', '))
+    } else {
+      avisos.push('declare a função: "function minhaFuncao(args) { ... }"')
+    }
+  } else if (listaEsperada.length > 0) {
+    const faltantes = listaEsperada.filter(n => !nomesJs.includes(n))
+    if (faltantes.length > 0) {
+      avisos.push('função(ões) não encontrada(s) no JS: ' + faltantes.map(n => '"' + n + '"').join(', '))
+    }
   }
 
   const temArgs = /\bfunction(?:\s+[a-zA-Z0-9_$]+)?\s*\(\s*args\b/.test(codigo) ||
@@ -1636,18 +1686,19 @@ document.querySelectorAll('[data-formata]').forEach(botao => {
       guardarCampos()
       atualizarResumos()
 
-      let nomeEsperado = ''
+      let nomesEsperados = []
       try {
         const s = JSON.parse(el('schema').value)
-        nomeEsperado = String(s.name || '').trim()
+        nomesEsperados = Array.isArray(s) ? s.map(x => String((x && x.name) || '').trim()).filter(Boolean) : [String((s && s.name) || '').trim()].filter(Boolean)
       } catch (_) {}
 
-      const avisosSemanticos = analisarSemanticaJs(campo.value, nomeEsperado)
+      const avisosSemanticos = analisarSemanticaJs(campo.value, nomesEsperados)
       if (avisosSemanticos.length > 0) {
         recado.textContent = 'formatado (atenção: ' + avisosSemanticos.join('; ') + ')'
         recado.className = 'recado aviso'
       } else {
-        recado.textContent = 'formatado com sucesso (função alinhada e válida)'
+        const total = nomesEsperados.length
+        recado.textContent = 'formatado com sucesso (' + (total > 1 ? total + ' funções alinhadas e válidas' : 'função alinhada e válida') + ')'
         recado.className = 'recado ok'
       }
     }
@@ -1705,20 +1756,34 @@ function guardarCampos() {
   localStorage.setItem('tc_corpo', el('corpo').value)
 }
 
-function extrairNomeFuncaoJs(codigo) {
-  const m = String(codigo).match(/(?:async\s+)?function\s+([a-zA-Z0-9_$]+)|(?:const|let|var)\s+([a-zA-Z0-9_$]+)\s*=\s*(?:async\s*)?(?:function\b|(?:\([^)]*\)|[a-zA-Z0-9_$]+)\s*=>)/)
-  return m ? (m[1] || m[2]) : ''
-}
-
 function atualizarResumos() {
   const schemaEl = el('resumoSchema')
-  let nomeEsperado = ''
+  let nomesEsperados = []
   try {
     const d = JSON.parse(el('schema').value)
-    nomeEsperado = String(d.name || '').trim()
-    const params = Object.keys((d.parameters && d.parameters.properties) || {})
-    schemaEl.textContent = (d.name || 'sem name') + '(' + params.join(', ') + ')'
-    schemaEl.className = 'valor'
+    if (Array.isArray(d)) {
+      nomesEsperados = d.map(x => String((x && x.name) || '').trim()).filter(Boolean)
+      if (d.length === 0) {
+        schemaEl.textContent = 'array vazio (0 ferramentas)'
+        schemaEl.className = 'valor ruim'
+      } else if (d.length === 1) {
+        const p = Object.keys((d[0].parameters && d[0].parameters.properties) || {})
+        schemaEl.textContent = (d[0].name || 'sem name') + '(' + p.join(', ') + ')'
+        schemaEl.className = 'valor'
+      } else {
+        schemaEl.textContent = d.length + ' ferramentas: ' + nomesEsperados.join(', ')
+        schemaEl.className = 'valor'
+      }
+    } else if (d && typeof d === 'object') {
+      const nome = String(d.name || '').trim()
+      if (nome) nomesEsperados = [nome]
+      const params = Object.keys((d.parameters && d.parameters.properties) || {})
+      schemaEl.textContent = (d.name || 'sem name') + '(' + params.join(', ') + ')'
+      schemaEl.className = 'valor'
+    } else {
+      schemaEl.textContent = 'JSON inválido'
+      schemaEl.className = 'valor ruim'
+    }
   } catch (erro) {
     const diag = analisarErroJson(el('schema').value, erro)
     schemaEl.textContent = 'JSON inválido (l. ' + diag.linha + ')'
@@ -1727,7 +1792,7 @@ function atualizarResumos() {
 
   const corpoValor = el('corpo').value
   const linhas = corpoValor.split('\n').filter(l => l.trim()).length
-  const nomeJs = extrairNomeFuncaoJs(corpoValor)
+  const nomesJs = extrairNomesFuncoesJs(corpoValor)
   const resumoCorpo = el('resumoCorpo')
   const recadoCorpo = el('recadoCorpo')
 
@@ -1742,27 +1807,41 @@ function atualizarResumos() {
     return
   }
 
-  if (!nomeJs) {
+  if (nomesJs.length === 0) {
     resumoCorpo.textContent = 'função não declarada (' + linhas + (linhas === 1 ? ' linha)' : ' linhas)')
     resumoCorpo.className = 'valor ruim'
     if (recadoCorpo && !recadoCorpo.classList.contains('ruim')) {
-      recadoCorpo.textContent = nomeEsperado ? 'declare function ' + nomeEsperado + '(args)' : 'declare a função em JavaScript'
+      recadoCorpo.textContent = nomesEsperados.length > 0
+        ? 'declare: ' + nomesEsperados.map(n => 'function ' + n + '(args)').join(', ')
+        : 'declare a função em JavaScript'
       recadoCorpo.className = 'recado ruim'
     }
-  } else if (nomeEsperado && nomeJs !== nomeEsperado) {
-    resumoCorpo.textContent = 'nome divergente: ' + nomeJs + ' ≠ ' + nomeEsperado
-    resumoCorpo.className = 'valor ruim'
-    if (recadoCorpo && !recadoCorpo.classList.contains('ruim')) {
-      recadoCorpo.textContent = 'nome divergente: declare function ' + nomeEsperado + '(args)'
-      recadoCorpo.className = 'recado ruim'
+  } else if (nomesEsperados.length > 0) {
+    const faltantes = nomesEsperados.filter(n => !nomesJs.includes(n))
+    if (faltantes.length > 0) {
+      resumoCorpo.textContent = 'falta declarar: ' + faltantes.join(', ')
+      resumoCorpo.className = 'valor ruim'
+      if (recadoCorpo && !recadoCorpo.classList.contains('ruim')) {
+        recadoCorpo.textContent = 'função ausente no JS: declare function ' + faltantes[0] + '(args)'
+        recadoCorpo.className = 'recado ruim'
+      }
+    } else {
+      if (nomesEsperados.length === 1) {
+        resumoCorpo.textContent = 'function ' + nomesEsperados[0] + ' (' + linhas + (linhas === 1 ? ' linha)' : ' linhas)')
+      } else {
+        resumoCorpo.textContent = nomesEsperados.length + ' funções alinhadas (' + linhas + (linhas === 1 ? ' linha)' : ' linhas)')
+      }
+      resumoCorpo.className = 'valor'
+      if (recadoCorpo && !recadoCorpo.classList.contains('ruim')) {
+        recadoCorpo.textContent = nomesEsperados.length > 1
+          ? 'todas as ' + nomesEsperados.length + ' ferramentas estão alinhadas ao schema'
+          : 'função alinhada ao schema'
+        recadoCorpo.className = 'recado ok'
+      }
     }
   } else {
-    resumoCorpo.textContent = 'function ' + nomeJs + ' (' + linhas + (linhas === 1 ? ' linha)' : ' linhas)')
+    resumoCorpo.textContent = nomesJs.length + (nomesJs.length === 1 ? ' função declarada' : ' funções declaradas')
     resumoCorpo.className = 'valor'
-    if (recadoCorpo && !recadoCorpo.classList.contains('ruim')) {
-      recadoCorpo.textContent = 'função alinhada ao schema'
-      recadoCorpo.className = 'recado ok'
-    }
   }
 }
 
@@ -1916,6 +1995,7 @@ async function comRetentativa(fn, espera_) {
 }
 
 async function chamarGroq(chave, modelo, mensagens, schema) {
+  const lista = Array.isArray(schema) ? schema : [schema]
   const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + chave },
@@ -1923,7 +2003,7 @@ async function chamarGroq(chave, modelo, mensagens, schema) {
       model: modelo,
       temperature: 0,
       messages: mensagens,
-      tools: [{ type: 'function', function: schema }],
+      tools: lista.map(s => ({ type: 'function', function: s })),
       tool_choice: 'auto'
     })
   })
@@ -1933,9 +2013,10 @@ async function chamarGroq(chave, modelo, mensagens, schema) {
 }
 
 async function chamarGemini(chave, modelo, contents, schema, pensar) {
+  const lista = Array.isArray(schema) ? schema : [schema]
   const corpoReq = {
     contents: contents,
-    tools: [{ functionDeclarations: [schema] }],
+    tools: [{ functionDeclarations: lista }],
     generationConfig: { temperature: 0 }
   }
   if (pensar) {
@@ -1997,11 +2078,14 @@ async function executarFuncaoLocal(corpo, nomeEsperado, args) {
 /* ---------- ciclos ---------- */
 
 async function rodarGroq(chave, modelo, schema, corpo, pedido, pensar) {
+  const listaSchemas = Array.isArray(schema) ? schema : [schema]
+  const nomesFerramentas = listaSchemas.map(s => s.name).join(', ')
+  const descFerramentas = listaSchemas.length === 1 ? '1 ferramenta declarada: ' + nomesFerramentas : listaSchemas.length + ' ferramentas declaradas: ' + nomesFerramentas
   const mensagens = [{ role: 'user', content: pedido }]
-  const requisicao = { model: modelo, messages: mensagens, tools: [{ type: 'function', function: schema }] }
+  const requisicao = { model: modelo, messages: mensagens, tools: listaSchemas.map(s => ({ type: 'function', function: s })) }
   cartao('local', 'Requisição enviada ao modelo',
-    'pedido do usuário e 1 ferramenta declarada: ' + schema.name, requisicao)
-  registrar('Requisição enviada ao modelo', 'aplicação', 'ferramenta declarada: ' + schema.name + '\npedido: ' + pedido)
+    'pedido do usuário e ' + descFerramentas, requisicao)
+  registrar('Requisição enviada ao modelo', 'aplicação', 'ferramentas declaradas: ' + nomesFerramentas + '\npedido: ' + pedido)
 
   for (let volta = 0; volta < 5; volta++) {
     const e = espera('remoto', 'Aguardando decisão do modelo')
@@ -2045,11 +2129,14 @@ async function rodarGroq(chave, modelo, schema, corpo, pedido, pensar) {
 }
 
 async function rodarGemini(chave, modelo, schema, corpo, pedido, pensar) {
+  const listaSchemas = Array.isArray(schema) ? schema : [schema]
+  const nomesFerramentas = listaSchemas.map(s => s.name).join(', ')
+  const descFerramentas = listaSchemas.length === 1 ? '1 ferramenta declarada: ' + nomesFerramentas : listaSchemas.length + ' ferramentas declaradas: ' + nomesFerramentas
   const contents = [{ role: 'user', parts: [{ text: pedido }] }]
   cartao('local', 'Requisição enviada ao modelo',
-    'pedido do usuário e 1 ferramenta declarada: ' + schema.name,
-    { contents: contents, tools: [{ functionDeclarations: [schema] }] })
-  registrar('Requisição enviada ao modelo', 'aplicação', 'ferramenta declarada: ' + schema.name + '\npedido: ' + pedido)
+    'pedido do usuário e ' + descFerramentas,
+    { contents: contents, tools: [{ functionDeclarations: listaSchemas }] })
+  registrar('Requisição enviada ao modelo', 'aplicação', 'ferramentas declaradas: ' + nomesFerramentas + '\npedido: ' + pedido)
 
   for (let volta = 0; volta < 5; volta++) {
     const e = espera('remoto', 'Aguardando decisão do modelo')
@@ -2208,17 +2295,21 @@ el('executar').addEventListener('click', async () => {
     return
   }
 
-  const nomeEsperado = String(schema.name || '').trim()
-  const nomeJs = extrairNomeFuncaoJs(el('corpo').value)
-  if (!nomeJs) {
+  const listaFerramentas = Array.isArray(schema) ? schema : [schema]
+  const nomesEsperados = listaFerramentas.map(s => String(s.name || '').trim()).filter(Boolean)
+  const nomesJs = extrairNomesFuncoesJs(el('corpo').value)
+  if (nomesJs.length === 0) {
     cartao('falha', 'Função JavaScript não declarada',
-      'Declare a função no JavaScript com o mesmo nome definido no schema: "function ' + nomeEsperado + '(args) { ... }".', null, 'falha')
+      'Declare a função no JavaScript com o mesmo nome definido no schema: ' +
+      nomesEsperados.map(n => '"function ' + n + '(args) { ... }"').join(', ') + '.', null, 'falha')
     situacao('parado', 'ruim')
     return
   }
-  if (nomeJs !== nomeEsperado) {
-    cartao('falha', 'Nome da função divergente',
-      'A função declarada no JavaScript ("' + nomeJs + '") tem nome diferente do definido no schema JSON ("' + nomeEsperado + '"). Alinhe os dois nomes para continuar.', null, 'falha')
+  const faltantes = nomesEsperados.filter(n => !nomesJs.includes(n))
+  if (faltantes.length > 0) {
+    cartao('falha', 'Função(ões) não encontrada(s) no JavaScript',
+      'O schema declara a(s) ferramenta(s) ' + faltantes.map(n => '"' + n + '"').join(', ') +
+      ', mas não encontramos sua declaração no JavaScript. Declare "function ' + faltantes[0] + '(args) { ... }".', null, 'falha')
     situacao('parado', 'ruim')
     return
   }
