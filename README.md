@@ -28,6 +28,10 @@ contra a API em 03/09/2026.
 Modelos da família 2.5 devolvem 404 em contas criadas recentemente, com a mensagem `no longer
 available to new users`.
 
+O nível gratuito do AI Studio limita a 20 requisições por dia em cada modelo, contadas separadamente
+por modelo. Um ciclo completo gasta 2 requisições, o que dá 10 execuções por modelo por dia. Ao
+esgotar, trocar o modelo no bloco 1 devolve um saldo novo. A página traduz o 429 e diz isso na tela.
+
 No Groq a página lista `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `openai/gpt-oss-120b` e
 `openai/gpt-oss-20b`.
 
@@ -42,6 +46,12 @@ que entregarem o mesmo trabalho recebem o mesmo código.
 
 `Copiar relatório` coloca na área de transferência o texto completo da execução, pronto para colar
 no formulário. `Baixar .md` grava o mesmo conteúdo em arquivo.
+
+## Realce de sintaxe
+
+Os dois campos de edição têm realce próprio, sem biblioteca externa. Um `pre` colorido fica atrás de
+um `textarea` de texto transparente, com fonte, espaçamento e recuo idênticos. Os payloads JSON da
+trilha usam o mesmo tokenizador.
 
 ## Cenários
 

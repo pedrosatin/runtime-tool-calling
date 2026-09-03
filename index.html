@@ -16,6 +16,11 @@
   --local: #3fd68a;
   --remoto: #a78bfa;
   --alerta: #f2777a;
+  --t-chave: #6fd1a8;
+  --t-texto: #d8c58c;
+  --t-num: #c7a3ff;
+  --t-coment: #6b6b7a;
+  --t-pont: #8b8b99;
   --mono: ui-monospace, "JetBrains Mono", "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -130,6 +135,48 @@ input, select, textarea {
 }
 
 textarea { resize: vertical; line-height: 1.5; tab-size: 2 }
+
+.editor { position: relative }
+
+.editor > pre, .editor > textarea {
+  margin: 0;
+  padding: 8px 10px;
+  width: 100%;
+  border: 1px solid var(--linha);
+  border-radius: 5px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  tab-size: 2;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.editor > pre {
+  position: absolute;
+  inset: 0;
+  background: var(--campo);
+  color: var(--texto);
+  border-color: transparent;
+  pointer-events: none;
+}
+
+.editor > textarea {
+  position: relative;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--local);
+}
+
+.editor > textarea::selection { background: #34344a }
+
+.tk-chave { color: var(--t-chave) }
+.tk-texto { color: var(--t-texto) }
+.tk-num { color: var(--t-num) }
+.tk-coment { color: var(--t-coment); font-style: italic }
+.tk-pont { color: var(--t-pont) }
 
 input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible,
 summary:focus-visible {
@@ -424,13 +471,13 @@ details pre {
     <div class="bloco">
       <h2><span>2</span>declaração da ferramenta</h2>
       <p class="dica">O que o modelo enxerga. Ele nunca vê o código abaixo, decide pela <code>description</code> e pelos tipos.</p>
-      <textarea id="schema" rows="15" spellcheck="false"></textarea>
+      <div class="editor"><pre id="schemaRealce" aria-hidden="true"></pre><textarea id="schema" rows="15" spellcheck="false"></textarea></div>
     </div>
 
     <div class="bloco">
       <h2><span>3</span>corpo da função</h2>
       <p class="dica">JavaScript executado no seu navegador. Recebe <code>args</code> e devolve com <code>return</code>.</p>
-      <textarea id="corpo" rows="13" spellcheck="false"></textarea>
+      <div class="editor"><pre id="corpoRealce" aria-hidden="true"></pre><textarea id="corpo" rows="13" spellcheck="false"></textarea></div>
     </div>
 
     <div class="bloco">
@@ -547,6 +594,51 @@ const CENARIOS = {
   foraEscopo: { schema: SCHEMA_OK, corpo: CORPO_OK, pedido: 'qual a previsão do tempo em Maringá amanhã?' }
 }
 
+const PALAVRAS = 'const|let|var|function|return|if|else|for|of|in|while|await|async|new|throw|try|catch|typeof|delete|null|true|false|undefined'
+
+function escapar(t) {
+  return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function realceJson(texto) {
+  return escapar(texto).replace(
+    /("(?:\\.|[^"\\])*")(\s*:)?|\b(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b|\b(true|false|null)\b|([{}\[\],:])/g,
+    (todo, str, doisPontos, num, lit, pont) => {
+      if (str) return doisPontos
+        ? '<span class="tk-chave">' + str + '</span><span class="tk-pont">' + doisPontos + '</span>'
+        : '<span class="tk-texto">' + str + '</span>'
+      if (num) return '<span class="tk-num">' + num + '</span>'
+      if (lit) return '<span class="tk-num">' + lit + '</span>'
+      return '<span class="tk-pont">' + pont + '</span>'
+    })
+}
+
+function realceJs(texto) {
+  return escapar(texto).replace(
+    new RegExp('(\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/)' +
+      '|(\'(?:\\\\.|[^\'\\\\])*\'|"(?:\\\\.|[^"\\\\])*"|`(?:\\\\.|[^`\\\\])*`)' +
+      '|\\b(' + PALAVRAS + ')\\b' +
+      '|\\b(\\d+(?:\\.\\d+)?)\\b' +
+      '|([{}\\[\\]().,])', 'g'),
+    (todo, coment, str, chave, num, pont) => {
+      if (coment) return '<span class="tk-coment">' + coment + '</span>'
+      if (str) return '<span class="tk-texto">' + str + '</span>'
+      if (chave) return '<span class="tk-num">' + chave + '</span>'
+      if (num) return '<span class="tk-num">' + num + '</span>'
+      return '<span class="tk-pont">' + pont + '</span>'
+    })
+}
+
+function ligarEditor(idCampo, idRealce, pintar) {
+  const campo = document.getElementById(idCampo)
+  const alvo = document.getElementById(idRealce)
+  const pintarAgora = () => { alvo.innerHTML = pintar(campo.value) + '\n' }
+  campo.addEventListener('input', pintarAgora)
+  campo.addEventListener('scroll', () => { alvo.scrollTop = campo.scrollTop })
+  campo.repintar = pintarAgora
+  return pintarAgora
+}
+
 const el = id => document.getElementById(id)
 const passos = el('passos')
 
@@ -580,7 +672,7 @@ function trocarProvedor() {
   preencherModelos(MODELOS[p], localStorage.getItem('tc_modelo_' + p) || PADRAO[p])
   el('chave').value = localStorage.getItem('tc_chave_' + p) || ''
   el('dicaModelo').textContent = p === 'gemini'
-    ? 'Modelos 2.5 devolvem 404 em contas novas. Se aparecer 503, o modelo está sobrecarregado e a página tenta de novo sozinha.'
+    ? 'O nível gratuito dá 20 requisições por dia em cada modelo, e um ciclo completo gasta 2. A cota é contada por modelo, então trocar de modelo aqui devolve um saldo novo. Modelos da família 2.5 devolvem 404 em contas criadas recentemente.'
     : 'Todos os modelos listados aceitam declaração de ferramenta no formato da OpenAI.'
 }
 
@@ -589,15 +681,24 @@ function aplicarCenario(nome) {
   el('schema').value = c.schema
   el('corpo').value = c.corpo
   el('pedido').value = c.pedido
+  repintarTudo()
+}
+
+function repintarTudo() {
+  el('schema').repintar()
+  el('corpo').repintar()
 }
 
 function iniciar() {
+  ligarEditor('schema', 'schemaRealce', realceJson)
+  ligarEditor('corpo', 'corpoRealce', realceJs)
   el('provedor').value = localStorage.getItem('tc_provedor') || 'gemini'
   trocarProvedor()
   aplicarCenario('ok')
   el('schema').value = localStorage.getItem('tc_schema') || SCHEMA_OK
   el('corpo').value = localStorage.getItem('tc_corpo') || CORPO_OK
   el('pedido').value = localStorage.getItem('tc_pedido') || CENARIOS.ok.pedido
+  repintarTudo()
 }
 
 el('provedor').addEventListener('change', () => {
@@ -705,7 +806,8 @@ function cartao(lado, titulo, resumo, bruto, tipo) {
     const s = document.createElement('summary')
     s.textContent = 'JSON completo'
     const pre = document.createElement('pre')
-    pre.textContent = typeof bruto === 'string' ? bruto : JSON.stringify(bruto, null, 2)
+    const conteudo = typeof bruto === 'string' ? bruto : JSON.stringify(bruto, null, 2)
+    pre.innerHTML = realceJson(conteudo)
     d.append(s, pre)
     caixa.append(d)
   }
@@ -818,6 +920,29 @@ async function chamarGemini(chave, modelo, contents, schema) {
   const d = await r.json()
   if (!r.ok) throw new Error(r.status + ' ' + JSON.stringify(d.error || d))
   return d
+}
+
+function explicar(bruto) {
+  const t = String(bruto)
+  if (/^429|RESOURCE_EXHAUSTED|rate.?limit/i.test(t)) {
+    const dia = /PerDay/i.test(t)
+    return dia
+      ? 'Cota diária esgotada para este modelo. O nível gratuito do AI Studio dá 20 requisições por dia em cada modelo, e um ciclo completo gasta 2. Escolha outro modelo no bloco 1, a cota é contada por modelo.'
+      : 'Muitas requisições em pouco tempo. Espere alguns segundos e execute de novo.'
+  }
+  if (/^404|NOT_FOUND|no longer available/i.test(t)) {
+    return 'Este modelo não está disponível para a sua chave. Escolha outro no bloco 1, ou clique em Buscar para listar só os liberados.'
+  }
+  if (/^40[13]|API key not valid|Invalid API Key|PERMISSION_DENIED/i.test(t)) {
+    return 'A chave foi recusada pelo provedor. Confira se ela pertence ao provedor selecionado no bloco 1.'
+  }
+  if (/^503|UNAVAILABLE|overloaded/i.test(t)) {
+    return 'O modelo continuou sobrecarregado depois de 3 tentativas. Escolha outro modelo no bloco 1.'
+  }
+  if (/Failed to fetch|NetworkError/i.test(t)) {
+    return 'O navegador não conseguiu alcançar o provedor. Verifique a conexão e se alguma extensão está bloqueando a requisição.'
+  }
+  return t.length > 240 ? t.slice(0, 240) + '…' : t
 }
 
 async function executarFuncaoLocal(corpo, args) {
@@ -1035,7 +1160,8 @@ el('executar').addEventListener('click', async () => {
     el('baixar').disabled = false
     situacao('ciclo concluído', 'ok')
   } catch (erro) {
-    cartao('falha', 'Falha na execução', String(erro && erro.message ? erro.message : erro), null, 'falha')
+    const bruto = String(erro && erro.message ? erro.message : erro)
+    cartao('falha', 'Falha na execução', explicar(bruto), bruto, 'falha')
     situacao('falhou', 'ruim')
   } finally {
     el('executar').disabled = false
