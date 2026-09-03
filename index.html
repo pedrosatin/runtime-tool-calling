@@ -689,7 +689,7 @@ button.secundario { font-size: 12px }
 
     <button class="etapa" data-abre="mCorpo">
       <span class="num">2</span>
-      <span class="nome">Corpo da função</span>
+      <span class="nome">Função JavaScript</span>
       <span class="valor" id="resumoCorpo"></span>
     </button>
 
@@ -750,9 +750,9 @@ button.secundario { font-size: 12px }
 
 <dialog id="mCorpo">
   <form method="dialog" class="janela larga">
-    <header><h3>Corpo da função <span class="termo">(execução local / runtime)</span></h3><button value="fechar" class="fechar" aria-label="Fechar">x</button></header>
+    <header><h3>Função em JavaScript <span class="termo">(execução local / runtime)</span></h3><button value="fechar" class="fechar" aria-label="Fechar">x</button></header>
     <div class="conteudo">
-      <p class="dica">JavaScript executado no seu navegador. Recebe <code>args</code> com os argumentos que o modelo escolheu e devolve com <code>return</code>.</p>
+      <p class="dica">Código executado no seu navegador. Declare a função com o mesmo nome definido no schema JSON (ex: <code>function consultarStatusPedido(args)</code>), recebendo <code>args</code> e retornando o resultado.</p>
       <div class="editor alto"><pre id="corpoRealce" aria-hidden="true"></pre><textarea id="corpo" spellcheck="false"></textarea></div>
     </div>
     <footer>
@@ -813,23 +813,27 @@ const SCHEMA_OPACO = `{
   }
 }`
 
-const CORPO_OPACO = `const banco = {
-  'PED-1042': { status: 'em separação', previsaoEntrega: '2026-09-09' }
-}
+const CORPO_OPACO = `function f1(args) {
+  const banco = {
+    'PED-1042': { status: 'em separação', previsaoEntrega: '2026-09-09' }
+  }
 
-return banco[args.p1] || { erro: 'não encontrado' }`
+  return banco[args.p1] || { erro: 'não encontrado' }
+}`
 
-const CORPO_OK = `const banco = {
-  'PED-1042': { status: 'em separação', previsaoEntrega: '2026-09-09' },
-  'PED-2077': { status: 'entregue', previsaoEntrega: '2026-08-28' }
-}
+const CORPO_OK = `function consultarStatusPedido(args) {
+  const banco = {
+    'PED-1042': { status: 'em separação', previsaoEntrega: '2026-09-09' },
+    'PED-2077': { status: 'entregue', previsaoEntrega: '2026-08-28' }
+  }
 
-const achado = banco[args.codigoPedido]
-if (!achado) {
-  return { erro: 'pedido não encontrado' }
-}
+  const achado = banco[args.codigoPedido]
+  if (!achado) {
+    return { erro: 'pedido não encontrado' }
+  }
 
-return { codigoPedido: args.codigoPedido, ...achado }`
+  return { codigoPedido: args.codigoPedido, ...achado }
+}`
 
 const CENARIOS = {
   ok: { schema: SCHEMA_OK, corpo: CORPO_OK, pedido: 'onde está o pedido PED-1042?' },
@@ -937,7 +941,8 @@ function iniciar() {
   trocarProvedor()
   aplicarCenario('ok')
   el('schema').value = localStorage.getItem('tc_schema') || SCHEMA_OK
-  el('corpo').value = localStorage.getItem('tc_corpo') || CORPO_OK
+  const salvoCorpo = localStorage.getItem('tc_corpo')
+  el('corpo').value = (salvoCorpo && extrairNomeFuncaoJs(salvoCorpo)) ? salvoCorpo : CORPO_OK
   el('pedido').value = localStorage.getItem('tc_pedido') || CENARIOS.ok.pedido
   repintarTudo()
   atualizarResumos()
@@ -1086,20 +1091,53 @@ function guardarCampos() {
   localStorage.setItem('tc_corpo', el('corpo').value)
 }
 
+function extrairNomeFuncaoJs(codigo) {
+  const m = String(codigo).match(/(?:async\s+)?function\s+([a-zA-Z0-9_$]+)|(?:const|let|var)\s+([a-zA-Z0-9_$]+)\s*=\s*(?:async\s*)?(?:function\b|(?:\([^)]*\)|[a-zA-Z0-9_$]+)\s*=>)/)
+  return m ? (m[1] || m[2]) : ''
+}
+
 function atualizarResumos() {
-  const schema = el('resumoSchema')
+  const schemaEl = el('resumoSchema')
+  let nomeEsperado = ''
   try {
     const d = JSON.parse(el('schema').value)
+    nomeEsperado = String(d.name || '').trim()
     const params = Object.keys((d.parameters && d.parameters.properties) || {})
-    schema.textContent = (d.name || 'sem name') + '(' + params.join(', ') + ')'
-    schema.className = 'valor'
+    schemaEl.textContent = (d.name || 'sem name') + '(' + params.join(', ') + ')'
+    schemaEl.className = 'valor'
   } catch (erro) {
-    schema.textContent = 'JSON inválido'
-    schema.className = 'valor ruim'
+    schemaEl.textContent = 'JSON inválido'
+    schemaEl.className = 'valor ruim'
   }
 
-  const linhas = el('corpo').value.split('\n').filter(l => l.trim()).length
-  el('resumoCorpo').textContent = linhas + (linhas === 1 ? ' linha' : ' linhas') + ' de JavaScript'
+  const corpoValor = el('corpo').value
+  const linhas = corpoValor.split('\n').filter(l => l.trim()).length
+  const nomeJs = extrairNomeFuncaoJs(corpoValor)
+  const resumoCorpo = el('resumoCorpo')
+  const recadoCorpo = el('recadoCorpo')
+
+  if (!nomeJs) {
+    resumoCorpo.textContent = 'função não declarada (' + linhas + (linhas === 1 ? ' linha)' : ' linhas)')
+    resumoCorpo.className = 'valor ruim'
+    if (recadoCorpo) {
+      recadoCorpo.textContent = nomeEsperado ? 'declare function ' + nomeEsperado + '(args)' : 'declare a função em JavaScript'
+      recadoCorpo.className = 'recado ruim'
+    }
+  } else if (nomeEsperado && nomeJs !== nomeEsperado) {
+    resumoCorpo.textContent = 'nome divergente: ' + nomeJs + ' ≠ ' + nomeEsperado
+    resumoCorpo.className = 'valor ruim'
+    if (recadoCorpo) {
+      recadoCorpo.textContent = 'nome divergente: declare function ' + nomeEsperado + '(args)'
+      recadoCorpo.className = 'recado ruim'
+    }
+  } else {
+    resumoCorpo.textContent = 'function ' + nomeJs + ' (' + linhas + (linhas === 1 ? ' linha)' : ' linhas)')
+    resumoCorpo.className = 'valor'
+    if (recadoCorpo) {
+      recadoCorpo.textContent = 'função alinhada ao schema'
+      recadoCorpo.className = 'recado ok'
+    }
+  }
 }
 
 function recadoAcesso(texto, classe) {
@@ -1319,9 +1357,15 @@ function explicar(bruto) {
   return t.length > 240 ? t.slice(0, 240) + '…' : t
 }
 
-async function executarFuncaoLocal(corpo, args) {
-  const fn = new Function('args', corpo)
-  return await fn(args)
+async function executarFuncaoLocal(corpo, nomeEsperado, args) {
+  const runner = new Function('args',
+    corpo + '\n' +
+    'if (typeof ' + nomeEsperado + ' === "function") {\n' +
+    '  return ' + nomeEsperado + '(args)\n' +
+    '}\n' +
+    'throw new Error("A função \\"" + ' + JSON.stringify(nomeEsperado) + ' + "\\" não foi declarada no código JavaScript. Declare function " + ' + JSON.stringify(nomeEsperado) + ' + "(args) { ... }")'
+  )
+  return await runner(args)
 }
 
 /* ---------- ciclos ---------- */
@@ -1357,7 +1401,7 @@ async function rodarGroq(chave, modelo, schema, corpo, pedido, pensar) {
 
     for (const c of chamadas) {
       const args = JSON.parse(c.function.arguments || '{}')
-      const resultado = await executarFuncaoLocal(corpo, args)
+      const resultado = await executarFuncaoLocal(corpo, c.function.name, args)
       cartao('local', 'Função executada no seu navegador',
         c.function.name + '(' + assinatura(args) + ')  ->  ' + corta(resultado, 160),
         { argumentos: args, retorno: resultado })
@@ -1407,7 +1451,7 @@ async function rodarGemini(chave, modelo, schema, corpo, pedido, pensar) {
     const retornos = []
     for (const c of chamadas) {
       const args = c.args || {}
-      const resultado = await executarFuncaoLocal(corpo, args)
+      const resultado = await executarFuncaoLocal(corpo, c.name, args)
       cartao('local', 'Função executada no seu navegador',
         c.name + '(' + assinatura(args) + ')  ->  ' + corta(resultado, 160),
         { argumentos: args, retorno: resultado })
@@ -1517,6 +1561,21 @@ el('executar').addEventListener('click', async () => {
   }
   if (!schema.name || !schema.parameters) {
     cartao('falha', 'Declaração incompleta', 'A declaração precisa de "name" e de "parameters".', null, 'falha')
+    situacao('parado', 'ruim')
+    return
+  }
+
+  const nomeEsperado = String(schema.name || '').trim()
+  const nomeJs = extrairNomeFuncaoJs(el('corpo').value)
+  if (!nomeJs) {
+    cartao('falha', 'Função JavaScript não declarada',
+      'Declare a função no JavaScript com o mesmo nome definido no schema: "function ' + nomeEsperado + '(args) { ... }".', null, 'falha')
+    situacao('parado', 'ruim')
+    return
+  }
+  if (nomeJs !== nomeEsperado) {
+    cartao('falha', 'Nome da função divergente',
+      'A função declarada no JavaScript ("' + nomeJs + '") tem nome diferente do definido no schema JSON ("' + nomeEsperado + '"). Alinhe os dois nomes para continuar.', null, 'falha')
     situacao('parado', 'ruim')
     return
   }
