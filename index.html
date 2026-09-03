@@ -3,161 +3,499 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23121214'/%3E%3Ctext x='16' y='23' font-size='18' font-family='monospace' fill='%2304d361' text-anchor='middle'%3E%7B%7D%3C/text%3E%3C/svg%3E">
-<title>Runtime de Tool Calling</title>
+<title>Runtime de tool calling</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23101014'/%3E%3Ctext x='16' y='23' font-size='19' font-family='monospace' fill='%233fd68a' text-anchor='middle'%3E%7B%7D%3C/text%3E%3C/svg%3E">
 <style>
-  :root {
-    --bg: #121214;
-    --painel: #1a1a1e;
-    --borda: #2a2a30;
-    --texto: #e1e1e6;
-    --apagado: #a8a8b3;
-    --verde: #04d361;
-    --roxo: #8257e5;
-    --vermelho: #e15757;
-  }
-  * { box-sizing: border-box }
-  body {
-    margin: 0;
-    padding: 24px;
-    background: var(--bg);
-    color: var(--texto);
-    font-family: 'Helvetica Neue', Arial, sans-serif;
-    font-size: 15px;
-    line-height: 1.5;
-  }
-  main { max-width: 1180px; margin: 0 auto }
-  h1 { color: var(--verde); font-size: 1.6rem; margin: 0 0 4px }
-  h2 { color: var(--roxo); font-size: 1.05rem; margin: 0 0 8px }
-  p.sub { color: var(--apagado); margin: 0 0 24px }
-  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 16px }
-  @media (max-width: 900px) { .grade { grid-template-columns: 1fr } }
-  section {
-    background: var(--painel);
-    border: 1px solid var(--borda);
-    border-radius: 8px;
-    padding: 16px;
-    margin-bottom: 16px;
-  }
-  label { display: block; font-size: 0.82rem; color: var(--apagado); margin: 10px 0 4px }
-  input, select, textarea {
-    width: 100%;
-    background: #0d0d0f;
-    color: var(--texto);
-    border: 1px solid var(--borda);
-    border-radius: 6px;
-    padding: 9px 10px;
-    font-size: 0.9rem;
-    font-family: inherit;
-  }
-  textarea {
-    font-family: ui-monospace, 'SF Mono', Consolas, monospace;
-    font-size: 0.82rem;
-    resize: vertical;
-    tab-size: 2;
-  }
-  input:focus, select:focus, textarea:focus { outline: 1px solid var(--roxo) }
-  button {
-    background: var(--verde);
-    color: #05160c;
-    border: 0;
-    border-radius: 6px;
-    padding: 11px 20px;
-    font-size: 0.95rem;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  button:disabled { opacity: 0.5; cursor: default }
-  button.secundario { background: transparent; color: var(--apagado); border: 1px solid var(--borda) }
-  .barra { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px }
-  .aviso { font-size: 0.78rem; color: var(--apagado); border-left: 2px solid var(--roxo); padding-left: 10px; margin-top: 12px }
-  .passo { border: 1px solid var(--borda); border-radius: 6px; margin-bottom: 10px; overflow: hidden }
-  .passo header {
-    display: flex; align-items: baseline; gap: 10px;
-    padding: 9px 12px; background: #0d0d0f; font-size: 0.85rem;
-  }
-  .passo .n {
-    background: var(--roxo); color: #fff; border-radius: 4px;
-    padding: 1px 7px; font-size: 0.75rem; font-weight: 700;
-  }
-  .passo .ator { color: var(--apagado); font-size: 0.75rem; margin-left: auto }
-  .passo pre {
-    margin: 0; padding: 12px; overflow: auto; max-height: 320px;
-    font-family: ui-monospace, 'SF Mono', Consolas, monospace;
-    font-size: 0.78rem; color: var(--texto); white-space: pre-wrap; word-break: break-word;
-  }
-  .passo.modelo .n { background: var(--verde); color: #05160c }
-  .passo.erro { border-color: var(--vermelho) }
-  .passo.erro .n { background: var(--vermelho) }
-  .vazio { color: var(--apagado); font-size: 0.85rem }
+:root {
+  --fundo: #101014;
+  --painel: #17171d;
+  --campo: #0c0c10;
+  --linha: #272730;
+  --texto: #e6e6ec;
+  --fraco: #8b8b99;
+  --local: #3fd68a;
+  --remoto: #a78bfa;
+  --alerta: #f2777a;
+  --mono: ui-monospace, "JetBrains Mono", "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box }
+
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--texto);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+/* ---------- barra superior ---------- */
+
+.topo {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 18px;
+  padding: 14px 26px;
+  background: rgba(16, 16, 20, .92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--linha);
+}
+
+.topo h1 {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -.2px;
+}
+
+.topo h1 b { color: var(--local); font-weight: 600 }
+
+.topo p {
+  margin: 0;
+  color: var(--fraco);
+  font-size: 13px;
+  max-width: 62ch;
+}
+
+/* ---------- estrutura ---------- */
+
+.corpo {
+  display: grid;
+  grid-template-columns: minmax(340px, 400px) 1fr;
+  align-items: start;
+  gap: 0;
+}
+
+.painel {
+  position: sticky;
+  top: 57px;
+  max-height: calc(100vh - 57px);
+  overflow-y: auto;
+  padding: 22px 24px 60px;
+  border-right: 1px solid var(--linha);
+  background: var(--painel);
+}
+
+.trilha { padding: 22px 26px 90px; min-width: 0 }
+
+@media (max-width: 900px) {
+  .corpo { grid-template-columns: 1fr }
+  .painel { position: static; max-height: none; border-right: 0; border-bottom: 1px solid var(--linha) }
+}
+
+/* ---------- formulário ---------- */
+
+.bloco { margin-bottom: 22px }
+
+.bloco > h2 {
+  margin: 0 0 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fraco);
+}
+
+.bloco > h2 span {
+  display: inline-block;
+  width: 17px;
+  color: var(--local);
+}
+
+label {
+  display: block;
+  margin: 10px 0 4px;
+  font-size: 12.5px;
+  color: var(--fraco);
+}
+
+input, select, textarea, button {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--texto);
+}
+
+input, select, textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--campo);
+  border: 1px solid var(--linha);
+  border-radius: 5px;
+}
+
+textarea { resize: vertical; line-height: 1.5; tab-size: 2 }
+
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--local);
+  outline-offset: 2px;
+}
+
+.dupla { display: grid; grid-template-columns: 1fr auto; gap: 6px }
+
+.dica { margin: 6px 0 0; font-size: 12px; color: var(--fraco); line-height: 1.45 }
+.dica code { color: var(--texto) }
+
+button {
+  padding: 8px 13px;
+  border: 1px solid var(--linha);
+  border-radius: 5px;
+  background: #202029;
+  color: var(--texto);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+button:hover:not(:disabled) { border-color: #3d3d4a }
+button:disabled { opacity: .45; cursor: default }
+
+button.acao {
+  width: 100%;
+  padding: 12px;
+  margin-top: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--local);
+  border-color: var(--local);
+  color: #06120c;
+}
+
+.mini { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px }
+.mini button { font-size: 12px; padding: 5px 9px }
+
+.aviso {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border-left: 2px solid var(--remoto);
+  background: #16121f;
+  font-size: 12px;
+  color: #c9c2dd;
+}
+
+/* ---------- trilha de execução ---------- */
+
+.cabeca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--linha);
+  margin-bottom: 6px;
+}
+
+.cabeca h2 { margin: 0; font-size: 14px; font-weight: 600 }
+
+.estado {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fraco);
+}
+
+.estado.ok { color: var(--local) }
+.estado.ruim { color: var(--alerta) }
+
+.entrega { margin-left: auto; display: flex; gap: 6px; align-items: center }
+.entrega button { font-size: 12px }
+
+.codigo {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fraco);
+}
+.codigo b { color: var(--texto); letter-spacing: 1px }
+
+/* raia de atores */
+
+.raias {
+  display: grid;
+  grid-template-columns: 1fr 34px 1fr;
+  margin: 14px 0 2px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.raias span:first-child { color: var(--local); text-align: right }
+.raias span:last-child { color: var(--remoto) }
+.raias .meio { text-align: center; color: var(--linha) }
+
+.passos { position: relative }
+
+.passos::before {
+  content: "";
+  position: absolute;
+  left: calc(50% - 1px);
+  top: 0;
+  bottom: 12px;
+  width: 2px;
+  background: var(--linha);
+}
+
+.passo {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 34px 1fr;
+  margin-bottom: 12px;
+}
+
+.cartao {
+  border: 1px solid var(--linha);
+  border-radius: 6px;
+  background: var(--painel);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.passo.local .cartao { grid-column: 1; border-left: 2px solid var(--local) }
+.passo.remoto .cartao { grid-column: 3; border-right: 2px solid var(--remoto) }
+.passo.falha .cartao { grid-column: 1 / -1; border-left: 2px solid var(--alerta) }
+
+.no {
+  position: relative;
+  grid-column: 2;
+  align-self: start;
+  justify-self: center;
+  margin-top: 13px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--fundo);
+  border: 2px solid var(--linha);
+}
+
+.passo.local .no { border-color: var(--local) }
+
+.no::before, .no::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 11px;
+  height: 2px;
+}
+
+.passo.local .no::before { right: 100%; background: var(--local) }
+.passo.remoto .no::after { left: 100%; background: var(--remoto) }
+.passo.remoto .no { border-color: var(--remoto) }
+.passo.falha .no { border-color: var(--alerta) }
+
+.cartao > header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px 12px 7px;
+}
+
+.cartao .n {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fraco);
+}
+
+.cartao .titulo { font-size: 13.5px; font-weight: 600; line-height: 1.3 }
+
+.cartao .resumo {
+  margin: 0;
+  padding: 0 12px 10px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: #b9b9c6;
+  overflow-wrap: anywhere;
+}
+
+.passo.remoto .cartao .resumo { color: #cdc2f0 }
+
+.passo.final .cartao { background: #191527 }
+
+.final {
+  margin: 0;
+  padding: 2px 12px 12px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+details { border-top: 1px solid var(--linha) }
+
+summary {
+  padding: 6px 12px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fraco);
+  cursor: pointer;
+  list-style: none;
+}
+
+summary::-webkit-details-marker { display: none }
+summary::before { content: "+ "; }
+details[open] summary::before { content: "- "; }
+summary:hover { color: var(--texto) }
+
+details pre {
+  margin: 0;
+  padding: 0 12px 12px;
+  max-height: 300px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: #b9b9c6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* estado de espera */
+
+.esperando .titulo { color: var(--fraco) }
+
+.pulso {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--remoto);
+  animation: bate 1s ease-in-out infinite;
+}
+
+@keyframes bate {
+  0%, 100% { opacity: .25; transform: scale(.7) }
+  50% { opacity: 1; transform: scale(1) }
+}
+
+.relogio { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--fraco) }
+
+@media (prefers-reduced-motion: reduce) {
+  .pulso { animation: none; opacity: .8 }
+}
+
+.vazio { color: var(--fraco); font-size: 13.5px; max-width: 60ch }
+.vazio code { font-family: var(--mono); color: var(--texto) }
+
+@media (max-width: 720px) {
+  .raias { display: none }
+  .passos::before { left: 5px }
+  .passo { grid-template-columns: 22px 1fr }
+  .passo.local .cartao, .passo.remoto .cartao, .passo.falha .cartao { grid-column: 2 }
+  .passo.remoto .cartao { border-right: 0; border-left: 2px solid var(--remoto) }
+  .no { grid-column: 1; justify-self: start }
+}
 </style>
 </head>
 <body>
-<main>
-  <h1>Runtime de Tool Calling</h1>
-  <p class="sub">O modelo decide qual função chamar e com quais argumentos. Esta página executa a função e devolve o resultado, que é o trabalho da caixa Aplicação / Runtime do diagrama da aula.</p>
 
-  <div class="grade">
-    <div>
-      <section>
-        <h2>1. Acesso</h2>
-        <label for="provedor">Provedor</label>
-        <select id="provedor">
-          <option value="groq">Groq</option>
-          <option value="gemini">Google AI Studio (Gemini)</option>
-        </select>
-        <label for="modelo">Modelo</label>
-        <input id="modelo" spellcheck="false">
-        <p class="aviso">Se o provedor responder 404 ou 503, troque o modelo aqui. Alternativas testadas: gemini-3.5-flash e gemini-3.7-flash no Gemini, llama-3.1-8b-instant e openai/gpt-oss-120b no Groq.</p>
-        <label for="chave">Sua chave de API</label>
-        <input id="chave" type="password" spellcheck="false" placeholder="cole aqui a chave do provedor escolhido">
-        <div class="barra">
-          <button class="secundario" id="salvar">Guardar chave neste navegador</button>
-          <button class="secundario" id="limpar">Apagar chave</button>
-        </div>
-        <p class="aviso">A chave fica no localStorage deste navegador e sai daqui apenas nas requisições para o provedor. A página é estática e não tem servidor próprio. Apague a chave antes de sair do laboratório.</p>
-      </section>
+<div class="topo">
+  <h1>runtime de tool calling <b>{}</b></h1>
+  <p>Declare a ferramenta, escreva o corpo da função e veja quem decide o quê em cada passo do ciclo.</p>
+</div>
 
-      <section>
-        <h2>2. Declaração da ferramenta</h2>
-        <label for="schema">JSON Schema. O mesmo texto serve para os dois provedores.</label>
-        <textarea id="schema" rows="16" spellcheck="false"></textarea>
-      </section>
+<div class="corpo">
+
+  <div class="painel">
+
+    <div class="bloco">
+      <h2><span>1</span>acesso</h2>
+      <label for="provedor">Provedor</label>
+      <select id="provedor">
+        <option value="gemini">Google AI Studio (Gemini)</option>
+        <option value="groq">Groq</option>
+      </select>
+
+      <label for="modelo">Modelo</label>
+      <div class="dupla">
+        <select id="modelo"></select>
+        <button id="buscar" title="Lista os modelos liberados para a sua chave">Buscar</button>
+      </div>
+      <p class="dica" id="dicaModelo"></p>
+
+      <label for="chave">Chave de API</label>
+      <input id="chave" type="password" spellcheck="false" placeholder="cole a chave do provedor escolhido">
+      <div class="mini">
+        <button id="salvar">Guardar neste navegador</button>
+        <button id="limpar">Apagar chave</button>
+      </div>
+      <p class="dica">A chave fica no <code>localStorage</code> deste navegador e vai apenas para o provedor escolhido. Nenhum servidor intermediário recebe a requisição.</p>
     </div>
 
-    <div>
-      <section>
-        <h2>3. Implementação da função</h2>
-        <label for="corpo">Corpo em JavaScript. Recebe o objeto <code>args</code> e devolve o resultado com <code>return</code>.</label>
-        <textarea id="corpo" rows="14" spellcheck="false"></textarea>
-      </section>
+    <div class="bloco">
+      <h2><span>2</span>declaração da ferramenta</h2>
+      <p class="dica">O que o modelo enxerga. Ele nunca vê o código abaixo, decide pela <code>description</code> e pelos tipos.</p>
+      <textarea id="schema" rows="15" spellcheck="false"></textarea>
+    </div>
 
-      <section>
-        <h2>4. Pedido do usuário</h2>
-        <label for="pedido">Frase enviada ao modelo</label>
-        <input id="pedido" spellcheck="false">
-        <div class="barra">
-          <button id="executar">Executar o ciclo</button>
-          <span id="estado" class="vazio"></span>
-        </div>
-      </section>
+    <div class="bloco">
+      <h2><span>3</span>corpo da função</h2>
+      <p class="dica">JavaScript executado no seu navegador. Recebe <code>args</code> e devolve com <code>return</code>.</p>
+      <textarea id="corpo" rows="13" spellcheck="false"></textarea>
+    </div>
+
+    <div class="bloco">
+      <h2><span>4</span>pedido do usuário</h2>
+      <input id="pedido" spellcheck="false">
+      <button class="acao" id="executar">Executar o ciclo</button>
+      <div class="mini">
+        <button data-cenario="ok">Ciclo completo</button>
+        <button data-cenario="opaca">Declaração opaca</button>
+        <button data-cenario="faltaArgumento">Falta argumento</button>
+        <button data-cenario="foraEscopo">Fora do escopo</button>
+      </div>
+      <p class="dica">Os quatro cenários carregam declaração, função e pedido de uma vez. Em <code>Declaração opaca</code> a ferramenta se chama <code>f1</code> e não tem description, para observar até onde o modelo acerta sem elas.</p>
+    </div>
+
+  </div>
+
+  <div class="trilha">
+    <div class="cabeca">
+      <h2>Ciclo executado</h2>
+      <span class="estado" id="estado"></span>
+      <div class="entrega">
+        <span class="codigo" id="codigo"></span>
+        <button id="copiar" disabled>Copiar relatório</button>
+        <button id="baixar" disabled>Baixar .md</button>
+      </div>
+    </div>
+
+    <div class="raias" id="raias" hidden>
+      <span>sua aplicação</span><span class="meio">|</span><span>modelo</span>
+    </div>
+
+    <div class="passos" id="passos">
+      <p class="vazio">Cole a chave no bloco 1 e clique em <code>Executar o ciclo</code>. Cada passo aparece do lado de quem o executou: à esquerda o código que roda na sua máquina, à direita as decisões do modelo.</p>
     </div>
   </div>
 
-  <section>
-    <h2>Ciclo executado</h2>
-    <div id="log"><p class="vazio">Nada executado ainda.</p></div>
-  </section>
-</main>
+</div>
 
 <script>
-const PADRAO_MODELO = {
-  groq: 'llama-3.3-70b-versatile',
-  gemini: 'gemini-3.6-flash'
+const MODELOS = {
+  gemini: [
+    ['gemini-3.5-flash', 'rápido e estável nos testes'],
+    ['gemini-3.7-flash', 'mais recente, um pouco mais lento'],
+    ['gemini-3.5-flash-lite', 'menor latência'],
+    ['gemini-3.1-flash-lite', 'alternativa leve'],
+    ['gemini-flash-lite-latest', 'apelido sempre atualizado'],
+    ['gemini-3-flash-preview', 'preview'],
+    ['gemini-3.6-flash', 'devolve 503 com frequência'],
+    ['gemini-3.8-flash', 'devolve 503 com frequência'],
+    ['gemini-pro-latest', 'cota gratuita bem menor']
+  ],
+  groq: [
+    ['llama-3.3-70b-versatile', 'padrão para tool calling'],
+    ['llama-3.1-8b-instant', 'menor e mais rápido'],
+    ['openai/gpt-oss-120b', 'modelo aberto da OpenAI'],
+    ['openai/gpt-oss-20b', 'versão menor']
+  ]
 }
 
-const EXEMPLO_SCHEMA = `{
+const PADRAO = { gemini: 'gemini-3.5-flash', groq: 'llama-3.3-70b-versatile' }
+
+const NOME_PROVEDOR = { gemini: 'Google AI Studio (Gemini)', groq: 'Groq' }
+
+const SCHEMA_OK = `{
   "name": "consultarStatusPedido",
   "description": "Retorna a situação atual de um pedido da loja. Chame sempre que o usuário citar um código de pedido.",
   "parameters": {
@@ -166,17 +504,31 @@ const EXEMPLO_SCHEMA = `{
       "codigoPedido": {
         "type": "string",
         "description": "Código no formato PED-0000"
-      },
-      "incluirHistorico": {
-        "type": "boolean",
-        "description": "Retorna também as mudanças de status"
       }
     },
     "required": ["codigoPedido"]
   }
 }`
 
-const EXEMPLO_CORPO = `const banco = {
+const SCHEMA_OPACO = `{
+  "name": "f1",
+  "description": "",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "p1": { "type": "string" }
+    },
+    "required": ["p1"]
+  }
+}`
+
+const CORPO_OPACO = `const banco = {
+  'PED-1042': { status: 'em separação', previsaoEntrega: '2026-09-09' }
+}
+
+return banco[args.p1] || { erro: 'não encontrado' }`
+
+const CORPO_OK = `const banco = {
   'PED-1042': { status: 'em separação', previsaoEntrega: '2026-09-09' },
   'PED-2077': { status: 'entregue', previsaoEntrega: '2026-08-28' }
 }
@@ -186,74 +538,258 @@ if (!achado) {
   return { erro: 'pedido não encontrado' }
 }
 
-return {
-  codigoPedido: args.codigoPedido,
-  status: achado.status,
-  previsaoEntrega: achado.previsaoEntrega
-}`
+return { codigoPedido: args.codigoPedido, ...achado }`
 
-const el = id => document.getElementById(id)
-const log = el('log')
-let contadorPasso = 0
-
-function iniciar() {
-  el('schema').value = localStorage.getItem('tc_schema') || EXEMPLO_SCHEMA
-  el('corpo').value = localStorage.getItem('tc_corpo') || EXEMPLO_CORPO
-  el('pedido').value = localStorage.getItem('tc_pedido') || 'onde esta o pedido PED-1042?'
-  el('provedor').value = localStorage.getItem('tc_provedor') || 'groq'
-  el('chave').value = localStorage.getItem('tc_chave_' + el('provedor').value) || ''
-  aplicarModeloPadrao()
+const CENARIOS = {
+  ok: { schema: SCHEMA_OK, corpo: CORPO_OK, pedido: 'onde está o pedido PED-1042?' },
+  opaca: { schema: SCHEMA_OPACO, corpo: CORPO_OPACO, pedido: 'onde está o pedido PED-1042?' },
+  faltaArgumento: { schema: SCHEMA_OK, corpo: CORPO_OK, pedido: 'quero saber o status do meu pedido' },
+  foraEscopo: { schema: SCHEMA_OK, corpo: CORPO_OK, pedido: 'qual a previsão do tempo em Maringá amanhã?' }
 }
 
-function aplicarModeloPadrao() {
+const el = id => document.getElementById(id)
+const passos = el('passos')
+
+let contador = 0
+let relatorio = null
+
+/* ---------- configuração ---------- */
+
+function preencherModelos(lista, selecionado) {
+  const sel = el('modelo')
+  sel.innerHTML = ''
+  lista.forEach(item => {
+    const id = Array.isArray(item) ? item[0] : item
+    const nota = Array.isArray(item) ? item[1] : ''
+    const o = document.createElement('option')
+    o.value = id
+    o.textContent = nota ? id + '  (' + nota + ')' : id
+    sel.append(o)
+  })
+  if (selecionado && !lista.some(i => (Array.isArray(i) ? i[0] : i) === selecionado)) {
+    const o = document.createElement('option')
+    o.value = selecionado
+    o.textContent = selecionado
+    sel.prepend(o)
+  }
+  sel.value = selecionado || sel.options[0].value
+}
+
+function trocarProvedor() {
   const p = el('provedor').value
-  el('modelo').value = localStorage.getItem('tc_modelo_' + p) || PADRAO_MODELO[p]
+  preencherModelos(MODELOS[p], localStorage.getItem('tc_modelo_' + p) || PADRAO[p])
   el('chave').value = localStorage.getItem('tc_chave_' + p) || ''
+  el('dicaModelo').textContent = p === 'gemini'
+    ? 'Modelos 2.5 devolvem 404 em contas novas. Se aparecer 503, o modelo está sobrecarregado e a página tenta de novo sozinha.'
+    : 'Todos os modelos listados aceitam declaração de ferramenta no formato da OpenAI.'
+}
+
+function aplicarCenario(nome) {
+  const c = CENARIOS[nome]
+  el('schema').value = c.schema
+  el('corpo').value = c.corpo
+  el('pedido').value = c.pedido
+}
+
+function iniciar() {
+  el('provedor').value = localStorage.getItem('tc_provedor') || 'gemini'
+  trocarProvedor()
+  aplicarCenario('ok')
+  el('schema').value = localStorage.getItem('tc_schema') || SCHEMA_OK
+  el('corpo').value = localStorage.getItem('tc_corpo') || CORPO_OK
+  el('pedido').value = localStorage.getItem('tc_pedido') || CENARIOS.ok.pedido
 }
 
 el('provedor').addEventListener('change', () => {
   localStorage.setItem('tc_provedor', el('provedor').value)
-  aplicarModeloPadrao()
+  trocarProvedor()
+})
+
+el('modelo').addEventListener('change', () => {
+  localStorage.setItem('tc_modelo_' + el('provedor').value, el('modelo').value)
 })
 
 el('salvar').addEventListener('click', () => {
   const p = el('provedor').value
   localStorage.setItem('tc_chave_' + p, el('chave').value.trim())
-  localStorage.setItem('tc_modelo_' + p, el('modelo').value.trim())
-  el('estado').textContent = 'Chave guardada.'
+  localStorage.setItem('tc_modelo_' + p, el('modelo').value)
+  situacao('chave guardada', '')
 })
 
 el('limpar').addEventListener('click', () => {
-  const p = el('provedor').value
-  localStorage.removeItem('tc_chave_' + p)
+  localStorage.removeItem('tc_chave_' + el('provedor').value)
   el('chave').value = ''
-  el('estado').textContent = 'Chave apagada deste navegador.'
+  situacao('chave apagada deste navegador', '')
 })
 
-function escrever(numero, titulo, ator, conteudo, classe) {
-  if (log.querySelector('.vazio')) log.innerHTML = ''
-  var rotulo = numero === '.' ? ++contadorPasso : numero
-  const div = document.createElement('div')
-  div.className = 'passo ' + (classe || '')
-  const cabecalho = document.createElement('header')
+document.querySelectorAll('[data-cenario]').forEach(b => {
+  b.addEventListener('click', () => aplicarCenario(b.dataset.cenario))
+})
+
+el('buscar').addEventListener('click', async () => {
+  const p = el('provedor').value
+  const chave = el('chave').value.trim()
+  if (!chave) { situacao('cole a chave antes de buscar os modelos', 'ruim'); return }
+  el('buscar').disabled = true
+  el('buscar').textContent = '...'
+  try {
+    let ids
+    if (p === 'gemini') {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': chave } })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error ? d.error.message : 'falha na listagem')
+      ids = d.models
+        .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+        .map(m => m.name.replace('models/', ''))
+        .filter(n => !/tts|image|embedding|transcribe|lyria|robotics|banana|deep-research/.test(n))
+    } else {
+      const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { 'Authorization': 'Bearer ' + chave } })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error ? d.error.message : 'falha na listagem')
+      ids = d.data.map(m => m.id).filter(n => !/whisper|tts|guard|embedding/.test(n))
+    }
+    ids.sort()
+    preencherModelos(ids, el('modelo').value)
+    situacao(ids.length + ' modelos liberados para esta chave', 'ok')
+  } catch (erro) {
+    situacao(String(erro.message || erro), 'ruim')
+  } finally {
+    el('buscar').disabled = false
+    el('buscar').textContent = 'Buscar'
+  }
+})
+
+/* ---------- trilha ---------- */
+
+function situacao(texto, classe) {
+  el('estado').textContent = texto
+  el('estado').className = 'estado ' + (classe || '')
+}
+
+function limpar() {
+  passos.innerHTML = ''
+  contador = 0
+  el('raias').hidden = false
+}
+
+function cartao(lado, titulo, resumo, bruto, tipo) {
+  const passo = document.createElement('div')
+  passo.className = 'passo ' + lado + (tipo === 'final' ? ' final' : '')
+
+  const no = document.createElement('div')
+  no.className = 'no'
+
+  const caixa = document.createElement('div')
+  caixa.className = 'cartao'
+
+  const cab = document.createElement('header')
   const n = document.createElement('span')
   n.className = 'n'
-  n.textContent = rotulo
+  n.textContent = tipo === 'falha' ? '!' : ++contador
   const t = document.createElement('span')
+  t.className = 'titulo'
   t.textContent = titulo
-  const a = document.createElement('span')
-  a.className = 'ator'
-  a.textContent = ator
-  cabecalho.append(n, t, a)
-  const pre = document.createElement('pre')
-  pre.textContent = typeof conteudo === 'string' ? conteudo : JSON.stringify(conteudo, null, 2)
-  div.append(cabecalho, pre)
-  log.append(div)
-  div.scrollIntoView({ block: 'nearest' })
+  cab.append(n, t)
+  caixa.append(cab)
+
+  if (resumo !== null && resumo !== undefined) {
+    const r = document.createElement('p')
+    r.className = tipo === 'final' ? 'final' : 'resumo'
+    if (tipo === 'final') negrito(r, resumo)
+    else r.textContent = resumo
+    caixa.append(r)
+  }
+
+  if (bruto !== null && bruto !== undefined) {
+    const d = document.createElement('details')
+    const s = document.createElement('summary')
+    s.textContent = 'JSON completo'
+    const pre = document.createElement('pre')
+    pre.textContent = typeof bruto === 'string' ? bruto : JSON.stringify(bruto, null, 2)
+    d.append(s, pre)
+    caixa.append(d)
+  }
+
+  passo.append(no, caixa)
+  passos.append(passo)
+  return passo
+}
+
+function negrito(alvo, texto) {
+  texto.split(/(\*\*[^*]+\*\*)/).forEach(parte => {
+    if (parte.startsWith('**') && parte.endsWith('**') && parte.length > 4) {
+      const b = document.createElement('strong')
+      b.textContent = parte.slice(2, -2)
+      alvo.append(b)
+    } else if (parte) {
+      alvo.append(document.createTextNode(parte))
+    }
+  })
+}
+
+function espera(lado, titulo) {
+  const passo = document.createElement('div')
+  passo.className = 'passo ' + lado + ' esperando'
+
+  const no = document.createElement('div')
+  no.className = 'no'
+
+  const caixa = document.createElement('div')
+  caixa.className = 'cartao'
+  const cab = document.createElement('header')
+  const p = document.createElement('span')
+  p.className = 'pulso'
+  const t = document.createElement('span')
+  t.className = 'titulo'
+  t.textContent = titulo
+  const r = document.createElement('span')
+  r.className = 'relogio'
+  cab.append(p, t, r)
+  caixa.append(cab)
+
+  passo.append(no, caixa)
+  passos.append(passo)
+  passo.scrollIntoView({ block: 'nearest' })
+
+  const inicio = Date.now()
+  const timer = setInterval(() => {
+    r.textContent = ((Date.now() - inicio) / 1000).toFixed(1) + 's'
+  }, 100)
+
+  return {
+    nota: texto => { t.textContent = texto },
+    fim: () => { clearInterval(timer); passo.remove(); return (Date.now() - inicio) / 1000 }
+  }
+}
+
+function corta(valor, limite) {
+  const texto = typeof valor === 'string' ? valor : JSON.stringify(valor)
+  return texto.length > limite ? texto.slice(0, limite) + '…' : texto
+}
+
+function assinatura(args) {
+  return Object.entries(args || {})
+    .map(([k, v]) => k + ': ' + JSON.stringify(v))
+    .join(', ')
+}
+
+/* ---------- chamadas aos provedores ---------- */
+
+async function comRetentativa(fn, espera_) {
+  for (let tentativa = 1; tentativa <= 3; tentativa++) {
+    try {
+      return await fn()
+    } catch (erro) {
+      const transitorio = /503|429|overloaded|UNAVAILABLE|RESOURCE_EXHAUSTED/i.test(String(erro.message || erro))
+      if (!transitorio || tentativa === 3) throw erro
+      espera_.nota('Modelo sobrecarregado, tentativa ' + (tentativa + 1) + ' de 3')
+      await new Promise(r => setTimeout(r, 1500 * tentativa))
+    }
+  }
 }
 
 async function chamarGroq(chave, modelo, mensagens, schema) {
-  const resposta = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + chave },
     body: JSON.stringify({
@@ -264,14 +800,13 @@ async function chamarGroq(chave, modelo, mensagens, schema) {
       tool_choice: 'auto'
     })
   })
-  const dados = await resposta.json()
-  if (!resposta.ok) throw new Error(JSON.stringify(dados, null, 2))
-  return dados
+  const d = await r.json()
+  if (!r.ok) throw new Error(r.status + ' ' + JSON.stringify(d.error || d))
+  return d
 }
 
 async function chamarGemini(chave, modelo, contents, schema) {
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + modelo + ':generateContent'
-  const resposta = await fetch(url, {
+  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + modelo + ':generateContent', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chave },
     body: JSON.stringify({
@@ -280,9 +815,9 @@ async function chamarGemini(chave, modelo, contents, schema) {
       generationConfig: { temperature: 0 }
     })
   })
-  const dados = await resposta.json()
-  if (!resposta.ok) throw new Error(JSON.stringify(dados, null, 2))
-  return dados
+  const d = await r.json()
+  if (!r.ok) throw new Error(r.status + ' ' + JSON.stringify(d.error || d))
+  return d
 }
 
 async function executarFuncaoLocal(corpo, args) {
@@ -290,93 +825,173 @@ async function executarFuncaoLocal(corpo, args) {
   return await fn(args)
 }
 
+/* ---------- ciclos ---------- */
+
 async function rodarGroq(chave, modelo, schema, corpo, pedido) {
   const mensagens = [{ role: 'user', content: pedido }]
-  escrever('.', 'Requisição enviada ao modelo', 'Aplicação / Runtime', {
-    model: modelo, messages: mensagens, tools: [{ type: 'function', function: schema }]
-  })
+  const requisicao = { model: modelo, messages: mensagens, tools: [{ type: 'function', function: schema }] }
+  cartao('local', 'Requisição enviada ao modelo',
+    'pedido do usuário e 1 ferramenta declarada: ' + schema.name, requisicao)
+  registrar('Requisição enviada ao modelo', 'aplicação', 'ferramenta declarada: ' + schema.name + '\npedido: ' + pedido)
 
   for (let volta = 0; volta < 5; volta++) {
-    const dados = await chamarGroq(chave, modelo, mensagens, schema)
+    const e = espera('remoto', 'Aguardando decisão do modelo')
+    let dados
+    try { dados = await comRetentativa(() => chamarGroq(chave, modelo, mensagens, schema), e) }
+    finally { var seg = e.fim() }
+
     const msg = dados.choices[0].message
     const chamadas = msg.tool_calls || []
 
     if (chamadas.length === 0) {
-      escrever('.', 'Resposta final, sem chamada de ferramenta', 'Modelo', msg.content || '(vazio)', 'modelo')
+      cartao('remoto', 'Resposta final, sem chamada de ferramenta', msg.content || '(vazio)', dados, 'final')
+      registrar('Resposta final', 'modelo', msg.content || '')
       return
     }
 
-    escrever('.', 'Chamada de ferramenta decidida pelo modelo', 'Modelo', chamadas, 'modelo')
+    const desc = chamadas.map(c => c.function.name + '(' + corta(c.function.arguments, 120) + ')').join('  ')
+    cartao('remoto', 'Chamada de ferramenta decidida pelo modelo', desc + '   [' + seg.toFixed(1) + 's]', chamadas)
+    registrar('Chamada de ferramenta', 'modelo', desc)
     mensagens.push(msg)
 
-    for (const chamada of chamadas) {
-      const args = JSON.parse(chamada.function.arguments || '{}')
+    for (const c of chamadas) {
+      const args = JSON.parse(c.function.arguments || '{}')
       const resultado = await executarFuncaoLocal(corpo, args)
-      escrever('.', 'Função executada localmente: ' + chamada.function.name, 'Aplicação / Runtime', {
-        argumentos: args, retorno: resultado
-      })
-      mensagens.push({
-        role: 'tool',
-        tool_call_id: chamada.id,
-        content: JSON.stringify(resultado)
-      })
+      cartao('local', 'Função executada no seu navegador',
+        c.function.name + '(' + assinatura(args) + ')  ->  ' + corta(resultado, 160),
+        { argumentos: args, retorno: resultado })
+      registrar('Função executada', 'aplicação', c.function.name + '(' + assinatura(args) + ') -> ' + JSON.stringify(resultado))
+      mensagens.push({ role: 'tool', tool_call_id: c.id, content: JSON.stringify(resultado) })
     }
 
-    escrever('.', 'Resultado devolvido ao modelo', 'Aplicação / Runtime', mensagens[mensagens.length - 1])
+    cartao('local', 'Retorno devolvido ao modelo',
+      'mensagem role: "tool" com o retorno da função', mensagens[mensagens.length - 1])
+    registrar('Retorno devolvido ao modelo', 'aplicação', JSON.stringify(mensagens[mensagens.length - 1]))
   }
 
-  escrever('!', 'Limite de 5 voltas atingido', 'Aplicação / Runtime', 'O modelo continuou pedindo chamadas. Revise a description ou o retorno da função.', 'erro')
+  cartao('falha', 'Limite de 5 voltas atingido',
+    'O modelo continuou pedindo chamadas. Revise a description da ferramenta ou o retorno da função.', null, 'falha')
 }
 
 async function rodarGemini(chave, modelo, schema, corpo, pedido) {
   const contents = [{ role: 'user', parts: [{ text: pedido }] }]
-  escrever('.', 'Requisição enviada ao modelo', 'Aplicação / Runtime', {
-    contents: contents, tools: [{ functionDeclarations: [schema] }]
-  })
+  cartao('local', 'Requisição enviada ao modelo',
+    'pedido do usuário e 1 ferramenta declarada: ' + schema.name,
+    { contents: contents, tools: [{ functionDeclarations: [schema] }] })
+  registrar('Requisição enviada ao modelo', 'aplicação', 'ferramenta declarada: ' + schema.name + '\npedido: ' + pedido)
 
   for (let volta = 0; volta < 5; volta++) {
-    const dados = await chamarGemini(chave, modelo, contents, schema)
+    const e = espera('remoto', 'Aguardando decisão do modelo')
+    let dados
+    try { dados = await comRetentativa(() => chamarGemini(chave, modelo, contents, schema), e) }
+    finally { var seg = e.fim() }
+
     const parts = (dados.candidates && dados.candidates[0].content.parts) || []
     const chamadas = parts.filter(p => p.functionCall).map(p => p.functionCall)
 
     if (chamadas.length === 0) {
       const texto = parts.map(p => p.text || '').join('')
-      escrever('.', 'Resposta final, sem chamada de ferramenta', 'Modelo', texto || '(vazio)', 'modelo')
+      cartao('remoto', 'Resposta final, sem chamada de ferramenta', texto || '(vazio)', dados, 'final')
+      registrar('Resposta final', 'modelo', texto)
       return
     }
 
-    escrever('.', 'Chamada de ferramenta decidida pelo modelo', 'Modelo', chamadas, 'modelo')
+    const desc = chamadas.map(c => c.name + '(' + assinatura(c.args) + ')').join('  ')
+    cartao('remoto', 'Chamada de ferramenta decidida pelo modelo', desc + '   [' + seg.toFixed(1) + 's]', chamadas)
+    registrar('Chamada de ferramenta', 'modelo', desc)
     contents.push({ role: 'model', parts: parts })
 
     const retornos = []
-    for (const chamada of chamadas) {
-      const args = chamada.args || {}
+    for (const c of chamadas) {
+      const args = c.args || {}
       const resultado = await executarFuncaoLocal(corpo, args)
-      escrever('.', 'Função executada localmente: ' + chamada.name, 'Aplicação / Runtime', {
-        argumentos: args, retorno: resultado
-      })
-      retornos.push({ functionResponse: { name: chamada.name, response: { resultado: resultado } } })
+      cartao('local', 'Função executada no seu navegador',
+        c.name + '(' + assinatura(args) + ')  ->  ' + corta(resultado, 160),
+        { argumentos: args, retorno: resultado })
+      registrar('Função executada', 'aplicação', c.name + '(' + assinatura(args) + ') -> ' + JSON.stringify(resultado))
+      retornos.push({ functionResponse: { name: c.name, response: { resultado: resultado } } })
     }
 
     contents.push({ role: 'user', parts: retornos })
-    escrever('.', 'Resultado devolvido ao modelo', 'Aplicação / Runtime', retornos)
+    cartao('local', 'Retorno devolvido ao modelo', 'parte functionResponse com o retorno da função', retornos)
+    registrar('Retorno devolvido ao modelo', 'aplicação', JSON.stringify(retornos))
   }
 
-  escrever('!', 'Limite de 5 voltas atingido', 'Aplicação / Runtime', 'O modelo continuou pedindo chamadas. Revise a description ou o retorno da função.', 'erro')
+  cartao('falha', 'Limite de 5 voltas atingido',
+    'O modelo continuou pedindo chamadas. Revise a description da ferramenta ou o retorno da função.', null, 'falha')
 }
+
+/* ---------- relatório de entrega ---------- */
+
+function registrar(titulo, ator, texto) {
+  if (relatorio) relatorio.linhas.push({ titulo, ator, texto })
+}
+
+async function selo(texto) {
+  if (!crypto.subtle) return 'SEM-HASH'
+  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto))
+  return Array.from(new Uint8Array(bytes)).slice(0, 4)
+    .map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase()
+}
+
+function montarRelatorio() {
+  const r = relatorio
+  const linhas = r.linhas.map((l, i) => '[' + (i + 1) + '] ' + l.titulo + ' (' + l.ator + ')\n' + l.texto).join('\n\n')
+  return [
+    'RUNTIME DE TOOL CALLING',
+    'código de verificação: ' + r.codigo,
+    'provedor: ' + NOME_PROVEDOR[r.provedor] + '   modelo: ' + r.modelo,
+    'executado em: ' + r.quando,
+    '',
+    '--- declaração da ferramenta ---',
+    r.schema,
+    '',
+    '--- corpo da função ---',
+    r.corpo,
+    '',
+    '--- pedido do usuário ---',
+    r.pedido,
+    '',
+    '--- ciclo executado ---',
+    linhas
+  ].join('\n')
+}
+
+el('copiar').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(montarRelatorio())
+    situacao('relatório copiado, cole no formulário', 'ok')
+  } catch (erro) {
+    situacao('o navegador bloqueou a área de transferência, use Baixar .md', 'ruim')
+  }
+})
+
+el('baixar').addEventListener('click', () => {
+  const blob = new Blob([montarRelatorio()], { type: 'text/markdown' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = 'tool-calling-' + relatorio.codigo + '.md'
+  a.click()
+  URL.revokeObjectURL(a.href)
+})
+
+/* ---------- execução ---------- */
 
 el('executar').addEventListener('click', async () => {
   const provedor = el('provedor').value
   const chave = el('chave').value.trim()
-  const modelo = el('modelo').value.trim()
+  const modelo = el('modelo').value
   const pedido = el('pedido').value.trim()
 
-  log.innerHTML = ''
-  contadorPasso = 0
-  el('estado').textContent = ''
+  limpar()
+  situacao('', '')
+  el('codigo').textContent = ''
+  el('copiar').disabled = true
+  el('baixar').disabled = true
 
   if (!chave) {
-    escrever('!', 'Falta a chave de API', 'Aplicação / Runtime', 'Cole a chave do provedor escolhido no campo do bloco 1.', 'erro')
+    cartao('falha', 'Falta a chave de API', 'Cole a chave do provedor escolhido no bloco 1.', null, 'falha')
+    situacao('parado', 'ruim')
     return
   }
 
@@ -384,7 +999,13 @@ el('executar').addEventListener('click', async () => {
   try {
     schema = JSON.parse(el('schema').value)
   } catch (erro) {
-    escrever('!', 'JSON da declaração inválido', 'Aplicação / Runtime', String(erro), 'erro')
+    cartao('falha', 'JSON da declaração inválido', String(erro), null, 'falha')
+    situacao('parado', 'ruim')
+    return
+  }
+  if (!schema.name || !schema.parameters) {
+    cartao('falha', 'Declaração incompleta', 'A declaração precisa de "name" e de "parameters".', null, 'falha')
+    situacao('parado', 'ruim')
     return
   }
 
@@ -392,19 +1013,30 @@ el('executar').addEventListener('click', async () => {
   localStorage.setItem('tc_corpo', el('corpo').value)
   localStorage.setItem('tc_pedido', pedido)
 
+  relatorio = {
+    provedor, modelo, pedido,
+    schema: el('schema').value,
+    corpo: el('corpo').value,
+    quando: new Date().toLocaleString('pt-BR'),
+    linhas: []
+  }
+
   el('executar').disabled = true
-  el('estado').textContent = 'executando...'
+  situacao('executando', '')
 
   try {
-    if (provedor === 'groq') {
-      await rodarGroq(chave, modelo, schema, el('corpo').value, pedido)
-    } else {
-      await rodarGemini(chave, modelo, schema, el('corpo').value, pedido)
-    }
-    el('estado').textContent = 'ciclo concluído'
+    if (provedor === 'groq') await rodarGroq(chave, modelo, schema, el('corpo').value, pedido)
+    else await rodarGemini(chave, modelo, schema, el('corpo').value, pedido)
+
+    relatorio.codigo = await selo(relatorio.schema + relatorio.corpo + relatorio.pedido +
+      relatorio.linhas.map(l => l.texto).join(''))
+    el('codigo').innerHTML = 'código <b>' + relatorio.codigo + '</b>'
+    el('copiar').disabled = false
+    el('baixar').disabled = false
+    situacao('ciclo concluído', 'ok')
   } catch (erro) {
-    escrever('!', 'Falha na execução', 'Aplicação / Runtime', String(erro && erro.message ? erro.message : erro), 'erro')
-    el('estado').textContent = 'falhou'
+    cartao('falha', 'Falha na execução', String(erro && erro.message ? erro.message : erro), null, 'falha')
+    situacao('falhou', 'ruim')
   } finally {
     el('executar').disabled = false
   }
