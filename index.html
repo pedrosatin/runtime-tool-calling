@@ -73,7 +73,7 @@ body {
 
 .corpo {
   display: grid;
-  grid-template-columns: minmax(340px, 400px) 1fr;
+  grid-template-columns: 300px 1fr;
   align-items: start;
   gap: 0;
 }
@@ -81,6 +81,7 @@ body {
 .painel {
   position: sticky;
   top: 57px;
+  min-height: calc(100vh - 57px);
   max-height: calc(100vh - 57px);
   overflow-y: auto;
   padding: 22px 24px 60px;
@@ -431,6 +432,115 @@ details pre {
   .passo.remoto .cartao { border-right: 0; border-left: 2px solid var(--remoto) }
   .no { grid-column: 1; justify-self: start }
 }
+/* ---------- etapas do painel ---------- */
+
+.etapa {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  text-align: left;
+  font-family: var(--sans);
+  background: var(--campo);
+  border: 1px solid var(--linha);
+  border-radius: 6px;
+  white-space: normal;
+}
+
+.etapa:hover { border-color: var(--local) }
+
+.etapa .num, .rotulo .num {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--local);
+  line-height: 1.5;
+}
+
+.etapa .nome { font-size: 13.5px; font-weight: 600 }
+
+.etapa .valor {
+  grid-column: 2;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fraco);
+  overflow-wrap: anywhere;
+}
+
+.etapa .valor.ruim { color: var(--alerta) }
+
+.rotulo {
+  display: block;
+  margin: 16px 0 5px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.secao {
+  margin: 22px 0 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fraco);
+}
+
+/* ---------- modais ---------- */
+
+dialog {
+  padding: 0;
+  border: 1px solid var(--linha);
+  border-radius: 8px;
+  background: var(--painel);
+  color: var(--texto);
+  max-width: 94vw;
+  max-height: 92vh;
+}
+
+dialog::backdrop { background: rgba(8, 8, 11, .7) }
+
+.janela { width: 540px; max-width: 94vw; display: flex; flex-direction: column; max-height: 92vh }
+.janela.larga { width: 760px }
+
+.janela > header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--linha);
+}
+
+.janela > header h3 { margin: 0; font-size: 15px; font-weight: 600 }
+
+.fechar {
+  margin-left: auto;
+  padding: 2px 9px;
+  font-family: var(--mono);
+  background: transparent;
+  border-color: transparent;
+  color: var(--fraco);
+}
+
+.janela .conteudo { padding: 6px 18px 18px; overflow-y: auto }
+.janela .conteudo > .dica:first-child { margin-top: 12px }
+
+.janela > footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--linha);
+}
+
+.recado { font-size: 12px; color: var(--fraco); flex: 1; overflow-wrap: anywhere }
+.recado.ruim { color: var(--alerta) }
+.recado.ok { color: var(--local) }
+
+button.acao.curto { width: auto; margin: 0; padding: 8px 18px; font-size: 13px }
+button.secundario { font-size: 12px }
+
+.editor.alto > pre, .editor.alto > textarea { min-height: 46vh }
+
 </style>
 </head>
 <body>
@@ -444,54 +554,37 @@ details pre {
 
   <div class="painel">
 
-    <div class="bloco">
-      <h2><span>1</span>acesso</h2>
-      <label for="provedor">Provedor</label>
-      <select id="provedor">
-        <option value="gemini">Google AI Studio (Gemini)</option>
-        <option value="groq">Groq</option>
-      </select>
+    <button class="etapa" data-abre="mAcesso">
+      <span class="num">1</span>
+      <span class="nome">Acesso</span>
+      <span class="valor" id="resumoAcesso"></span>
+    </button>
 
-      <label for="modelo">Modelo</label>
-      <div class="dupla">
-        <select id="modelo"></select>
-        <button id="buscar" title="Lista os modelos liberados para a sua chave">Buscar</button>
-      </div>
-      <p class="dica" id="dicaModelo"></p>
+    <button class="etapa" data-abre="mSchema">
+      <span class="num">2</span>
+      <span class="nome">Declaração da ferramenta</span>
+      <span class="valor" id="resumoSchema"></span>
+    </button>
 
-      <label for="chave">Chave de API</label>
-      <input id="chave" type="password" spellcheck="false" placeholder="cole a chave do provedor escolhido">
-      <div class="mini">
-        <button id="salvar">Guardar neste navegador</button>
-        <button id="limpar">Apagar chave</button>
-      </div>
-      <p class="dica">A chave fica no <code>localStorage</code> deste navegador e vai apenas para o provedor escolhido. Nenhum servidor intermediário recebe a requisição.</p>
+    <button class="etapa" data-abre="mCorpo">
+      <span class="num">3</span>
+      <span class="nome">Corpo da função</span>
+      <span class="valor" id="resumoCorpo"></span>
+    </button>
+
+    <label class="rotulo" for="pedido"><span class="num">4</span> Pedido do usuário</label>
+    <input id="pedido" spellcheck="false">
+
+    <button class="acao" id="executar">Executar o ciclo</button>
+
+    <p class="secao">Cenários prontos</p>
+    <div class="mini">
+      <button data-cenario="ok">Ciclo completo</button>
+      <button data-cenario="opaca">Declaração opaca</button>
+      <button data-cenario="faltaArgumento">Falta argumento</button>
+      <button data-cenario="foraEscopo">Fora do escopo</button>
     </div>
-
-    <div class="bloco">
-      <h2><span>2</span>declaração da ferramenta</h2>
-      <p class="dica">O que o modelo enxerga. Ele nunca vê o código abaixo, decide pela <code>description</code> e pelos tipos.</p>
-      <div class="editor"><pre id="schemaRealce" aria-hidden="true"></pre><textarea id="schema" rows="15" spellcheck="false"></textarea></div>
-    </div>
-
-    <div class="bloco">
-      <h2><span>3</span>corpo da função</h2>
-      <p class="dica">JavaScript executado no seu navegador. Recebe <code>args</code> e devolve com <code>return</code>.</p>
-      <div class="editor"><pre id="corpoRealce" aria-hidden="true"></pre><textarea id="corpo" rows="13" spellcheck="false"></textarea></div>
-    </div>
-
-    <div class="bloco">
-      <h2><span>4</span>pedido do usuário</h2>
-      <input id="pedido" spellcheck="false">
-      <button class="acao" id="executar">Executar o ciclo</button>
-      <div class="mini">
-        <button data-cenario="ok">Ciclo completo</button>
-        <button data-cenario="opaca">Declaração opaca</button>
-        <button data-cenario="faltaArgumento">Falta argumento</button>
-        <button data-cenario="foraEscopo">Fora do escopo</button>
-      </div>
-      <p class="dica">Os quatro cenários carregam declaração, função e pedido de uma vez. Em <code>Declaração opaca</code> a ferramenta se chama <code>f1</code> e não tem description, para observar até onde o modelo acerta sem elas.</p>
-    </div>
+    <p class="dica">Cada cenário carrega declaração, função e pedido de uma vez. Em <code>Declaração opaca</code> a ferramenta se chama <code>f1</code> e não tem description, para observar até onde o modelo acerta sem elas.</p>
 
   </div>
 
@@ -516,6 +609,65 @@ details pre {
   </div>
 
 </div>
+
+<dialog id="mAcesso">
+  <form method="dialog" class="janela">
+    <header><h3>Acesso ao provedor</h3><button value="fechar" class="fechar" aria-label="Fechar">x</button></header>
+    <div class="conteudo">
+      <label for="provedor">Provedor</label>
+      <select id="provedor">
+        <option value="gemini">Google AI Studio (Gemini)</option>
+        <option value="groq">Groq</option>
+      </select>
+
+      <label for="modelo">Modelo</label>
+      <div class="dupla">
+        <select id="modelo"></select>
+        <button type="button" id="buscar" title="Lista os modelos liberados para a sua chave">Buscar</button>
+      </div>
+      <p class="dica" id="dicaModelo"></p>
+
+      <label for="chave">Chave de API</label>
+      <input id="chave" type="password" spellcheck="false" placeholder="cole a chave do provedor escolhido">
+      <div class="mini">
+        <button type="button" id="salvar">Guardar neste navegador</button>
+        <button type="button" id="limpar">Apagar chave</button>
+      </div>
+      <p class="dica">A chave fica no <code>localStorage</code> deste navegador e vai apenas para o provedor escolhido. Nenhum servidor intermediário recebe a requisição.</p>
+    </div>
+    <footer><span class="recado" id="recadoAcesso"></span><button value="fechar" class="acao curto">Concluir</button></footer>
+  </form>
+</dialog>
+
+<dialog id="mSchema">
+  <form method="dialog" class="janela larga">
+    <header><h3>Declaração da ferramenta</h3><button value="fechar" class="fechar" aria-label="Fechar">x</button></header>
+    <div class="conteudo">
+      <p class="dica">O que o modelo enxerga. Ele nunca vê o corpo da função, decide pela <code>description</code> e pelos tipos declarados.</p>
+      <div class="editor alto"><pre id="schemaRealce" aria-hidden="true"></pre><textarea id="schema" spellcheck="false"></textarea></div>
+    </div>
+    <footer>
+      <button type="button" class="secundario" data-formata="schema">Formatar JSON</button>
+      <span class="recado" id="recadoSchema"></span>
+      <button value="fechar" class="acao curto">Concluir</button>
+    </footer>
+  </form>
+</dialog>
+
+<dialog id="mCorpo">
+  <form method="dialog" class="janela larga">
+    <header><h3>Corpo da função</h3><button value="fechar" class="fechar" aria-label="Fechar">x</button></header>
+    <div class="conteudo">
+      <p class="dica">JavaScript executado no seu navegador. Recebe <code>args</code> com os argumentos que o modelo escolheu e devolve com <code>return</code>.</p>
+      <div class="editor alto"><pre id="corpoRealce" aria-hidden="true"></pre><textarea id="corpo" spellcheck="false"></textarea></div>
+    </div>
+    <footer>
+      <button type="button" class="secundario" data-formata="corpo">Formatar código</button>
+      <span class="recado" id="recadoCorpo"></span>
+      <button value="fechar" class="acao curto">Concluir</button>
+    </footer>
+  </form>
+</dialog>
 
 <script>
 const MODELOS = {
@@ -671,6 +823,7 @@ function trocarProvedor() {
   const p = el('provedor').value
   preencherModelos(MODELOS[p], localStorage.getItem('tc_modelo_' + p) || PADRAO[p])
   el('chave').value = localStorage.getItem('tc_chave_' + p) || ''
+  atualizarResumos()
   el('dicaModelo').textContent = p === 'gemini'
     ? 'O nível gratuito dá 20 requisições por dia em cada modelo, e um ciclo completo gasta 2. A cota é contada por modelo, então trocar de modelo aqui devolve um saldo novo. Modelos da família 2.5 devolvem 404 em contas criadas recentemente.'
     : 'Todos os modelos listados aceitam declaração de ferramenta no formato da OpenAI.'
@@ -682,6 +835,7 @@ function aplicarCenario(nome) {
   el('corpo').value = c.corpo
   el('pedido').value = c.pedido
   repintarTudo()
+  atualizarResumos()
 }
 
 function repintarTudo() {
@@ -699,6 +853,8 @@ function iniciar() {
   el('corpo').value = localStorage.getItem('tc_corpo') || CORPO_OK
   el('pedido').value = localStorage.getItem('tc_pedido') || CENARIOS.ok.pedido
   repintarTudo()
+  atualizarResumos()
+  if (!el('chave').value.trim()) el('mAcesso').showModal()
 }
 
 el('provedor').addEventListener('change', () => {
@@ -708,19 +864,22 @@ el('provedor').addEventListener('change', () => {
 
 el('modelo').addEventListener('change', () => {
   localStorage.setItem('tc_modelo_' + el('provedor').value, el('modelo').value)
+  atualizarResumos()
 })
+
+el('chave').addEventListener('input', atualizarResumos)
 
 el('salvar').addEventListener('click', () => {
   const p = el('provedor').value
   localStorage.setItem('tc_chave_' + p, el('chave').value.trim())
   localStorage.setItem('tc_modelo_' + p, el('modelo').value)
-  situacao('chave guardada', '')
+  recadoAcesso('chave guardada neste navegador', 'ok')
 })
 
 el('limpar').addEventListener('click', () => {
   localStorage.removeItem('tc_chave_' + el('provedor').value)
   el('chave').value = ''
-  situacao('chave apagada deste navegador', '')
+  recadoAcesso('chave apagada deste navegador', 'ok')
 })
 
 document.querySelectorAll('[data-cenario]').forEach(b => {
@@ -730,7 +889,7 @@ document.querySelectorAll('[data-cenario]').forEach(b => {
 el('buscar').addEventListener('click', async () => {
   const p = el('provedor').value
   const chave = el('chave').value.trim()
-  if (!chave) { situacao('cole a chave antes de buscar os modelos', 'ruim'); return }
+  if (!chave) { recadoAcesso('cole a chave antes de buscar os modelos', 'ruim'); return }
   el('buscar').disabled = true
   el('buscar').textContent = '...'
   try {
@@ -751,9 +910,9 @@ el('buscar').addEventListener('click', async () => {
     }
     ids.sort()
     preencherModelos(ids, el('modelo').value)
-    situacao(ids.length + ' modelos liberados para esta chave', 'ok')
+    recadoAcesso(ids.length + ' modelos liberados para esta chave', 'ok')
   } catch (erro) {
-    situacao(String(erro.message || erro), 'ruim')
+    recadoAcesso(String(erro.message || erro), 'ruim')
   } finally {
     el('buscar').disabled = false
     el('buscar').textContent = 'Buscar'
@@ -761,6 +920,105 @@ el('buscar').addEventListener('click', async () => {
 })
 
 /* ---------- trilha ---------- */
+
+/* ---------- formatação ---------- */
+
+function formatarJson(texto) {
+  return JSON.stringify(JSON.parse(texto), null, 2)
+}
+
+function formatarJs(texto) {
+  let nivel = 0
+  return texto.replace(/\t/g, '  ').split('\n').map(linha => {
+    const corte = linha.trim()
+    if (!corte) return ''
+    const abreComFecho = /^[)}\]]/.test(corte)
+    if (abreComFecho) nivel = Math.max(0, nivel - 1)
+    const saida = '  '.repeat(nivel) + corte
+    const semTexto = corte
+      .replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`/g, '')
+      .replace(/\/\/.*$/, '')
+    let delta = (semTexto.match(/[({[]/g) || []).length - (semTexto.match(/[)}\]]/g) || []).length
+    if (abreComFecho) delta += 1
+    nivel = Math.max(0, nivel + delta)
+    return saida
+  }).join('\n')
+}
+
+const FORMATADOR = { schema: formatarJson, corpo: formatarJs }
+
+document.querySelectorAll('[data-formata]').forEach(botao => {
+  botao.addEventListener('click', () => {
+    const alvo = botao.dataset.formata
+    const campo = el(alvo)
+    const recado = el(alvo === 'schema' ? 'recadoSchema' : 'recadoCorpo')
+    try {
+      campo.value = FORMATADOR[alvo](campo.value)
+      campo.repintar()
+      recado.textContent = 'formatado'
+      recado.className = 'recado ok'
+    } catch (erro) {
+      recado.textContent = 'não deu para formatar: ' + String(erro.message || erro)
+      recado.className = 'recado ruim'
+    }
+  })
+})
+
+/* ---------- modais ---------- */
+
+document.querySelectorAll('[data-abre]').forEach(botao => {
+  botao.addEventListener('click', () => {
+    const janela = el(botao.dataset.abre)
+    repintarTudo()
+    janela.showModal()
+  })
+})
+
+document.querySelectorAll('dialog').forEach(janela => {
+  janela.addEventListener('close', () => {
+    janela.querySelectorAll('.recado').forEach(r => { r.textContent = ''; r.className = 'recado' })
+    guardarCampos()
+    atualizarResumos()
+  })
+})
+
+el('schema').addEventListener('input', () => { atualizarResumos(); guardarCampos() })
+el('corpo').addEventListener('input', () => { atualizarResumos(); guardarCampos() })
+el('pedido').addEventListener('input', () => localStorage.setItem('tc_pedido', el('pedido').value))
+
+function guardarCampos() {
+  localStorage.setItem('tc_schema', el('schema').value)
+  localStorage.setItem('tc_corpo', el('corpo').value)
+}
+
+function atualizarResumos() {
+  const p = el('provedor').value
+  const temChave = el('chave').value.trim().length > 0
+  const acesso = el('resumoAcesso')
+  acesso.textContent = (p === 'gemini' ? 'AI Studio' : 'Groq') + ' · ' + el('modelo').value +
+    ' · ' + (temChave ? 'chave preenchida' : 'sem chave')
+  acesso.className = 'valor' + (temChave ? '' : ' ruim')
+
+  const schema = el('resumoSchema')
+  try {
+    const d = JSON.parse(el('schema').value)
+    const params = Object.keys((d.parameters && d.parameters.properties) || {})
+    schema.textContent = (d.name || 'sem name') + '(' + params.join(', ') + ')'
+    schema.className = 'valor'
+  } catch (erro) {
+    schema.textContent = 'JSON inválido'
+    schema.className = 'valor ruim'
+  }
+
+  const linhas = el('corpo').value.split('\n').filter(l => l.trim()).length
+  el('resumoCorpo').textContent = linhas + (linhas === 1 ? ' linha' : ' linhas') + ' de JavaScript'
+}
+
+function recadoAcesso(texto, classe) {
+  const r = el('recadoAcesso')
+  r.textContent = texto
+  r.className = 'recado ' + (classe || '')
+}
 
 function situacao(texto, classe) {
   el('estado').textContent = texto
@@ -1082,6 +1340,14 @@ function montarRelatorio() {
   ].join('\n')
 }
 
+async function selar() {
+  relatorio.codigo = await selo(relatorio.schema + relatorio.corpo + relatorio.pedido +
+    relatorio.linhas.map(l => l.texto).join(''))
+  el('codigo').innerHTML = 'código <b>' + relatorio.codigo + '</b>'
+  el('copiar').disabled = false
+  el('baixar').disabled = false
+}
+
 el('copiar').addEventListener('click', async () => {
   try {
     await navigator.clipboard.writeText(montarRelatorio())
@@ -1153,15 +1419,13 @@ el('executar').addEventListener('click', async () => {
     if (provedor === 'groq') await rodarGroq(chave, modelo, schema, el('corpo').value, pedido)
     else await rodarGemini(chave, modelo, schema, el('corpo').value, pedido)
 
-    relatorio.codigo = await selo(relatorio.schema + relatorio.corpo + relatorio.pedido +
-      relatorio.linhas.map(l => l.texto).join(''))
-    el('codigo').innerHTML = 'código <b>' + relatorio.codigo + '</b>'
-    el('copiar').disabled = false
-    el('baixar').disabled = false
+    await selar()
     situacao('ciclo concluído', 'ok')
   } catch (erro) {
     const bruto = String(erro && erro.message ? erro.message : erro)
     cartao('falha', 'Falha na execução', explicar(bruto), bruto, 'falha')
+    registrar('Falha na execução', 'provedor', explicar(bruto) + '\n' + bruto)
+    await selar()
     situacao('falhou', 'ruim')
   } finally {
     el('executar').disabled = false
