@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runtime de Tool Calling</title>
+<style>
+  :root {
+    --bg: #121214;
+    --painel: #1a1a1e;
+    --borda: #2a2a30;
+    --texto: #e1e1e6;
+    --apagado: #a8a8b3;
+    --verde: #04d361;
+    --roxo: #8257e5;
+    --vermelho: #e15757;
+  }
+  * { box-sizing: border-box }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg);
+    color: var(--texto);
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  main { max-width: 1180px; margin: 0 auto }
+  h1 { color: var(--verde); font-size: 1.6rem; margin: 0 0 4px }
+  h2 { color: var(--roxo); font-size: 1.05rem; margin: 0 0 8px }
+  p.sub { color: var(--apagado); margin: 0 0 24px }
+  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 16px }
+  @media (max-width: 900px) { .grade { grid-template-columns: 1fr } }
+  section {
+    background: var(--painel);
+    border: 1px solid var(--borda);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  label { display: block; font-size: 0.82rem; color: var(--apagado); margin: 10px 0 4px }
+  input, select, textarea {
+    width: 100%;
+    background: #0d0d0f;
+    color: var(--texto);
+    border: 1px solid var(--borda);
+    border-radius: 6px;
+    padding: 9px 10px;
+    font-size: 0.9rem;
+    font-family: inherit;
+  }
+  textarea {
+    font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+    font-size: 0.82rem;
+    resize: vertical;
+    tab-size: 2;
+  }
+  input:focus, select:focus, textarea:focus { outline: 1px solid var(--roxo) }
+  button {
+    background: var(--verde);
+    color: #05160c;
+    border: 0;
+    border-radius: 6px;
+    padding: 11px 20px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  button:disabled { opacity: 0.5; cursor: default }
+  button.secundario { background: transparent; color: var(--apagado); border: 1px solid var(--borda) }
+  .barra { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px }
+  .aviso { font-size: 0.78rem; color: var(--apagado); border-left: 2px solid var(--roxo); padding-left: 10px; margin-top: 12px }
+  .passo { border: 1px solid var(--borda); border-radius: 6px; margin-bottom: 10px; overflow: hidden }
+  .passo header {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 9px 12px; background: #0d0d0f; font-size: 0.85rem;
+  }
+  .passo .n {
+    background: var(--roxo); color: #fff; border-radius: 4px;
+    padding: 1px 7px; font-size: 0.75rem; font-weight: 700;
+  }
+  .passo .ator { color: var(--apagado); font-size: 0.75rem; margin-left: auto }
+  .passo pre {
+    margin: 0; padding: 12px; overflow-x: auto;
+    font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+    font-size: 0.78rem; color: var(--texto); white-space: pre-wrap; word-break: break-word;
+  }
+  .passo.modelo .n { background: var(--verde); color: #05160c }
+  .passo.erro { border-color: var(--vermelho) }
+  .passo.erro .n { background: var(--vermelho) }
+  .vazio { color: var(--apagado); font-size: 0.85rem }
+</style>
+</head>
+<body>
+<main>
+  <h1>Runtime de Tool Calling</h1>
+  <p class="sub">O modelo decide qual funcao chamar e com quais argumentos. Esta pagina executa a funcao e devolve o resultado, que e o trabalho da caixa Aplicacao / Runtime do diagrama da aula.</p>
+
+  <div class="grade">
+    <div>
+      <section>
+        <h2>1. Acesso</h2>
+        <label for="provedor">Provedor</label>
+        <select id="provedor">
+          <option value="groq">Groq</option>
+          <option value="gemini">Google AI Studio (Gemini)</option>
+        </select>
+        <label for="modelo">Modelo</label>
+        <input id="modelo" spellcheck="false">
+        <p class="aviso">Se o provedor responder 404 ou 503, troque o modelo aqui. Alternativas testadas: gemini-3.5-flash e gemini-3.7-flash no Gemini, llama-3.1-8b-instant e openai/gpt-oss-120b no Groq.</p>
+        <label for="chave">Sua chave de API</label>
+        <input id="chave" type="password" spellcheck="false" placeholder="cole aqui a chave do provedor escolhido">
+        <div class="barra">
+          <button class="secundario" id="salvar">Guardar chave neste navegador</button>
+          <button class="secundario" id="limpar">Apagar chave</button>
+        </div>
+        <p class="aviso">A chave fica no localStorage deste navegador e sai daqui apenas nas requisicoes para o provedor. A pagina e estatica e nao tem servidor proprio. Apague a chave antes de sair do laboratorio.</p>
+      </section>
+
+      <section>
+        <h2>2. Declaracao da ferramenta</h2>
+        <label for="schema">JSON Schema. O mesmo texto serve para os dois provedores.</label>
+        <textarea id="schema" rows="16" spellcheck="false"></textarea>
+      </section>
+    </div>
+
+    <div>
+      <section>
+        <h2>3. Implementacao da funcao</h2>
+        <label for="corpo">Corpo em JavaScript. Recebe o objeto <code>args</code> e devolve o resultado com <code>return</code>.</label>
+        <textarea id="corpo" rows="14" spellcheck="false"></textarea>
+      </section>
+
+      <section>
+        <h2>4. Pedido do usuario</h2>
+        <label for="pedido">Frase enviada ao modelo</label>
+        <input id="pedido" spellcheck="false">
+        <div class="barra">
+          <button id="executar">Executar o ciclo</button>
+          <span id="estado" class="vazio"></span>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <section>
+    <h2>Ciclo executado</h2>
+    <div id="log"><p class="vazio">Nada executado ainda.</p></div>
+  </section>
+</main>
+
+<script>
+const PADRAO_MODELO = {
+  groq: 'llama-3.3-70b-versatile',
+  gemini: 'gemini-3.6-flash'
+}
+
+const EXEMPLO_SCHEMA = `{
+  "name": "consultarStatusPedido",
+  "description": "Retorna a situacao atual de um pedido da loja. Chame sempre que o usuario citar um codigo de pedido.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "codigoPedido": {
+        "type": "string",
+        "description": "Codigo no formato PED-0000"
+      },
+      "incluirHistorico": {
+        "type": "boolean",
+        "description": "Retorna tambem as mudancas de status"
+      }
+    },
+    "required": ["codigoPedido"]
+  }
+}`
+
+const EXEMPLO_CORPO = `const banco = {
+  'PED-1042': { status: 'em separacao', previsaoEntrega: '2026-09-09' },
+  'PED-2077': { status: 'entregue', previsaoEntrega: '2026-08-28' }
+}
+
+const achado = banco[args.codigoPedido]
+if (!achado) {
+  return { erro: 'pedido nao encontrado' }
+}
+
+return {
+  codigoPedido: args.codigoPedido,
+  status: achado.status,
+  previsaoEntrega: achado.previsaoEntrega
+}`
+
+const el = id => document.getElementById(id)
+const log = el('log')
+let contadorPasso = 0
+
+function iniciar() {
+  el('schema').value = localStorage.getItem('tc_schema') || EXEMPLO_SCHEMA
+  el('corpo').value = localStorage.getItem('tc_corpo') || EXEMPLO_CORPO
+  el('pedido').value = localStorage.getItem('tc_pedido') || 'onde esta o pedido PED-1042?'
+  el('provedor').value = localStorage.getItem('tc_provedor') || 'groq'
+  el('chave').value = localStorage.getItem('tc_chave_' + el('provedor').value) || ''
+  aplicarModeloPadrao()
+}
+
+function aplicarModeloPadrao() {
+  const p = el('provedor').value
+  el('modelo').value = localStorage.getItem('tc_modelo_' + p) || PADRAO_MODELO[p]
+  el('chave').value = localStorage.getItem('tc_chave_' + p) || ''
+}
+
+el('provedor').addEventListener('change', () => {
+  localStorage.setItem('tc_provedor', el('provedor').value)
+  aplicarModeloPadrao()
+})
+
+el('salvar').addEventListener('click', () => {
+  const p = el('provedor').value
+  localStorage.setItem('tc_chave_' + p, el('chave').value.trim())
+  localStorage.setItem('tc_modelo_' + p, el('modelo').value.trim())
+  el('estado').textContent = 'Chave guardada.'
+})
+
+el('limpar').addEventListener('click', () => {
+  const p = el('provedor').value
+  localStorage.removeItem('tc_chave_' + p)
+  el('chave').value = ''
+  el('estado').textContent = 'Chave apagada deste navegador.'
+})
+
+function escrever(numero, titulo, ator, conteudo, classe) {
+  if (log.querySelector('.vazio')) log.innerHTML = ''
+  var rotulo = numero === '.' ? ++contadorPasso : numero
+  const div = document.createElement('div')
+  div.className = 'passo ' + (classe || '')
+  const cabecalho = document.createElement('header')
+  const n = document.createElement('span')
+  n.className = 'n'
+  n.textContent = rotulo
+  const t = document.createElement('span')
+  t.textContent = titulo
+  const a = document.createElement('span')
+  a.className = 'ator'
+  a.textContent = ator
+  cabecalho.append(n, t, a)
+  const pre = document.createElement('pre')
+  pre.textContent = typeof conteudo === 'string' ? conteudo : JSON.stringify(conteudo, null, 2)
+  div.append(cabecalho, pre)
+  log.append(div)
+  div.scrollIntoView({ block: 'nearest' })
+}
+
+async function chamarGroq(chave, modelo, mensagens, schema) {
+  const resposta = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + chave },
+    body: JSON.stringify({
+      model: modelo,
+      temperature: 0,
+      messages: mensagens,
+      tools: [{ type: 'function', function: schema }],
+      tool_choice: 'auto'
+    })
+  })
+  const dados = await resposta.json()
+  if (!resposta.ok) throw new Error(JSON.stringify(dados, null, 2))
+  return dados
+}
+
+async function chamarGemini(chave, modelo, contents, schema) {
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + modelo + ':generateContent'
+  const resposta = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chave },
+    body: JSON.stringify({
+      contents: contents,
+      tools: [{ functionDeclarations: [schema] }],
+      generationConfig: { temperature: 0 }
+    })
+  })
+  const dados = await resposta.json()
+  if (!resposta.ok) throw new Error(JSON.stringify(dados, null, 2))
+  return dados
+}
+
+async function executarFuncaoLocal(corpo, args) {
+  const fn = new Function('args', corpo)
+  return await fn(args)
+}
+
+async function rodarGroq(chave, modelo, schema, corpo, pedido) {
+  const mensagens = [{ role: 'user', content: pedido }]
+  escrever('.', 'Requisicao enviada ao modelo', 'Aplicacao / Runtime', {
+    model: modelo, messages: mensagens, tools: [{ type: 'function', function: schema }]
+  })
+
+  for (let volta = 0; volta < 5; volta++) {
+    const dados = await chamarGroq(chave, modelo, mensagens, schema)
+    const msg = dados.choices[0].message
+    const chamadas = msg.tool_calls || []
+
+    if (chamadas.length === 0) {
+      escrever('.', 'Resposta final, sem chamada de ferramenta', 'Modelo', msg.content || '(vazio)', 'modelo')
+      return
+    }
+
+    escrever('.', 'Chamada de ferramenta decidida pelo modelo', 'Modelo', chamadas, 'modelo')
+    mensagens.push(msg)
+
+    for (const chamada of chamadas) {
+      const args = JSON.parse(chamada.function.arguments || '{}')
+      const resultado = await executarFuncaoLocal(corpo, args)
+      escrever('.', 'Funcao executada localmente: ' + chamada.function.name, 'Aplicacao / Runtime', {
+        argumentos: args, retorno: resultado
+      })
+      mensagens.push({
+        role: 'tool',
+        tool_call_id: chamada.id,
+        content: JSON.stringify(resultado)
+      })
+    }
+
+    escrever('.', 'Resultado devolvido ao modelo', 'Aplicacao / Runtime', mensagens[mensagens.length - 1])
+  }
+
+  escrever('!', 'Limite de 5 voltas atingido', 'Aplicacao / Runtime', 'O modelo continuou pedindo chamadas. Revise a description ou o retorno da funcao.', 'erro')
+}
+
+async function rodarGemini(chave, modelo, schema, corpo, pedido) {
+  const contents = [{ role: 'user', parts: [{ text: pedido }] }]
+  escrever('.', 'Requisicao enviada ao modelo', 'Aplicacao / Runtime', {
+    contents: contents, tools: [{ functionDeclarations: [schema] }]
+  })
+
+  for (let volta = 0; volta < 5; volta++) {
+    const dados = await chamarGemini(chave, modelo, contents, schema)
+    const parts = (dados.candidates && dados.candidates[0].content.parts) || []
+    const chamadas = parts.filter(p => p.functionCall).map(p => p.functionCall)
+
+    if (chamadas.length === 0) {
+      const texto = parts.map(p => p.text || '').join('')
+      escrever('.', 'Resposta final, sem chamada de ferramenta', 'Modelo', texto || '(vazio)', 'modelo')
+      return
+    }
+
+    escrever('.', 'Chamada de ferramenta decidida pelo modelo', 'Modelo', chamadas, 'modelo')
+    contents.push({ role: 'model', parts: parts })
+
+    const retornos = []
+    for (const chamada of chamadas) {
+      const args = chamada.args || {}
+      const resultado = await executarFuncaoLocal(corpo, args)
+      escrever('.', 'Funcao executada localmente: ' + chamada.name, 'Aplicacao / Runtime', {
+        argumentos: args, retorno: resultado
+      })
+      retornos.push({ functionResponse: { name: chamada.name, response: { resultado: resultado } } })
+    }
+
+    contents.push({ role: 'user', parts: retornos })
+    escrever('.', 'Resultado devolvido ao modelo', 'Aplicacao / Runtime', retornos)
+  }
+
+  escrever('!', 'Limite de 5 voltas atingido', 'Aplicacao / Runtime', 'O modelo continuou pedindo chamadas. Revise a description ou o retorno da funcao.', 'erro')
+}
+
+el('executar').addEventListener('click', async () => {
+  const provedor = el('provedor').value
+  const chave = el('chave').value.trim()
+  const modelo = el('modelo').value.trim()
+  const pedido = el('pedido').value.trim()
+
+  log.innerHTML = ''
+  contadorPasso = 0
+  el('estado').textContent = ''
+
+  if (!chave) {
+    escrever('!', 'Falta a chave de API', 'Aplicacao / Runtime', 'Cole a chave do provedor escolhido no campo do bloco 1.', 'erro')
+    return
+  }
+
+  let schema
+  try {
+    schema = JSON.parse(el('schema').value)
+  } catch (erro) {
+    escrever('!', 'JSON da declaracao invalido', 'Aplicacao / Runtime', String(erro), 'erro')
+    return
+  }
+
+  localStorage.setItem('tc_schema', el('schema').value)
+  localStorage.setItem('tc_corpo', el('corpo').value)
+  localStorage.setItem('tc_pedido', pedido)
+
+  el('executar').disabled = true
+  el('estado').textContent = 'executando...'
+
+  try {
+    if (provedor === 'groq') {
+      await rodarGroq(chave, modelo, schema, el('corpo').value, pedido)
+    } else {
+      await rodarGemini(chave, modelo, schema, el('corpo').value, pedido)
+    }
+    el('estado').textContent = 'ciclo concluido'
+  } catch (erro) {
+    escrever('!', 'Falha na execucao', 'Aplicacao / Runtime', String(erro && erro.message ? erro.message : erro), 'erro')
+    el('estado').textContent = 'falhou'
+  } finally {
+    el('executar').disabled = false
+  }
+})
+
+iniciar()
+</script>
+</body>
+</html>
