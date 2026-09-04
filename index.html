@@ -2087,6 +2087,8 @@ async function rodarGroq(chave, modelo, schema, corpo, pedido, pensar) {
     'pedido do usuário e ' + descFerramentas, requisicao)
   registrar('Requisição enviada ao modelo', 'aplicação', 'ferramentas declaradas: ' + nomesFerramentas + '\npedido: ' + pedido)
 
+  let chamouFerramenta = false
+
   for (let volta = 0; volta < 5; volta++) {
     const e = espera('remoto', 'Aguardando decisão do modelo')
     let dados
@@ -2099,10 +2101,15 @@ async function rodarGroq(chave, modelo, schema, corpo, pedido, pensar) {
     if (pensou) registrar('Raciocínio do modelo (thought)', 'modelo', pensou)
 
     if (chamadas.length === 0) {
-      cartao('remoto', 'Resposta final, sem chamada de ferramenta', msg.content || '(vazio)', dados, 'final', pensou)
-      registrar('Resposta final', 'modelo', msg.content || '')
+      const titulo = chamouFerramenta
+        ? 'Resposta final consolidada'
+        : 'Resposta final direta, sem chamada de ferramenta'
+      cartao('remoto', titulo, msg.content || '(vazio)', dados, 'final', pensou)
+      registrar(titulo, 'modelo', msg.content || '')
       return
     }
+
+    chamouFerramenta = true
 
     const desc = chamadas.map(c => c.function.name + '(' + corta(c.function.arguments, 120) + ')').join('  ')
     cartao('remoto', 'Chamada de ferramenta decidida pelo modelo', desc + '   [' + seg.toFixed(1) + 's]', chamadas, null, pensou)
@@ -2138,6 +2145,8 @@ async function rodarGemini(chave, modelo, schema, corpo, pedido, pensar) {
     { contents: contents, tools: [{ functionDeclarations: listaSchemas }] })
   registrar('Requisição enviada ao modelo', 'aplicação', 'ferramentas declaradas: ' + nomesFerramentas + '\npedido: ' + pedido)
 
+  let chamouFerramenta = false
+
   for (let volta = 0; volta < 5; volta++) {
     const e = espera('remoto', 'Aguardando decisão do modelo')
     let dados
@@ -2151,10 +2160,15 @@ async function rodarGemini(chave, modelo, schema, corpo, pedido, pensar) {
 
     if (chamadas.length === 0) {
       const texto = parts.filter(p => !p.thought).map(p => p.text || '').join('')
-      cartao('remoto', 'Resposta final, sem chamada de ferramenta', texto || '(vazio)', dados, 'final', pensou)
-      registrar('Resposta final', 'modelo', texto)
+      const titulo = chamouFerramenta
+        ? 'Resposta final consolidada'
+        : 'Resposta final direta, sem chamada de ferramenta'
+      cartao('remoto', titulo, texto || '(vazio)', dados, 'final', pensou)
+      registrar(titulo, 'modelo', texto)
       return
     }
+
+    chamouFerramenta = true
 
     const desc = chamadas.map(c => c.name + '(' + assinatura(c.args) + ')').join('  ')
     cartao('remoto', 'Chamada de ferramenta decidida pelo modelo', desc + '   [' + seg.toFixed(1) + 's]', chamadas, null, pensou)
